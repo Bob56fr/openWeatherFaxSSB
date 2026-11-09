@@ -33,6 +33,8 @@ void print_usage() {
         "      --ioc 576|288             Force the IOC (default: from APT start tone)\n"
         "      --lpm 120|90|60           Lines per minute (default 120)\n"
         "      --ppm <value>             Force the sound card clock error (default: auto)\n"
+        "  decode-all <in.wav> <prefix>  Split a long recording at each APT start and decode\n"
+        "                                every transmission to <prefix>_NN.png (same options)\n"
         "\n"
         "  synth <out.wav>               Generate a synthetic WEFAX test signal\n"
         "      --lines <n>               Image lines (default 300)\n"
@@ -119,19 +121,7 @@ owfax::wefax::Lpm parse_lpm(const std::string& s) {
     throw std::invalid_argument("LPM must be 120, 90 or 60");
 }
 
-int cmd_decode(Args args) {
-    owfax::wefax::DecodeOptions opt;
-    if (auto v = take_option(args, "--ioc")) opt.ioc = parse_ioc(*v);
-    if (auto v = take_option(args, "--lpm")) opt.lpm = parse_lpm(*v);
-    if (auto v = take_option(args, "--ppm")) opt.clock_ppm = std::stod(*v);
-    if (args.size() != 2) {
-        print_usage();
-        return 2;
-    }
-    const auto audio = owfax::audio::read_wav(args[0]);
-    std::printf("Input:          %s, %d Hz, %.1f s\n", args[0].c_str(), audio.sample_rate,
-                audio.duration_s());
-    const auto result = owfax::wefax::decode(audio, opt);
+void print_report(const owfax::wefax::DecodeResult& result) {
     const auto& r = result.report;
     double quality = 0.0;
     for (float q : r.line_quality) quality += static_cast<double>(q);
@@ -147,6 +137,51 @@ int cmd_decode(Args args) {
     std::printf("Clock error:    %+.1f ppm\n", r.clock_ppm);
     std::printf("Image:          %zu x %zu, %.1f s → %.1f s, quality %.0f %%\n", result.image.width,
                 result.image.height, r.image_start_s, r.image_end_s, quality * 100.0);
+}
+
+owfax::wefax::DecodeOptions take_decode_options(Args& args) {
+    owfax::wefax::DecodeOptions opt;
+    if (auto v = take_option(args, "--ioc")) opt.ioc = parse_ioc(*v);
+    if (auto v = take_option(args, "--lpm")) opt.lpm = parse_lpm(*v);
+    if (auto v = take_option(args, "--ppm")) opt.clock_ppm = std::stod(*v);
+    return opt;
+}
+
+owfax::audio::AudioBuffer load(const std::string& path) {
+    auto audio = owfax::audio::read_wav(path);
+    std::printf("Input:          %s, %d Hz, %.1f s\n", path.c_str(), audio.sample_rate,
+                audio.duration_s());
+    return audio;
+}
+
+int cmd_decode_all(Args args) {
+    const auto opt = take_decode_options(args);
+    if (args.size() != 2) {
+        print_usage();
+        return 2;
+    }
+    const auto results = owfax::wefax::decode_all(load(args[0]), opt);
+    std::printf("Transmissions:  %zu\n", results.size());
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "_%02zu.png", i + 1);
+        const std::string path = args[1] + name;
+        std::printf("\n--- #%zu\n", i + 1);
+        print_report(results[i]);
+        owfax::write_png(path, results[i].image);
+        std::printf("Written:        %s\n", path.c_str());
+    }
+    return results.empty() ? 1 : 0;
+}
+
+int cmd_decode(Args args) {
+    const auto opt = take_decode_options(args);
+    if (args.size() != 2) {
+        print_usage();
+        return 2;
+    }
+    const auto result = owfax::wefax::decode(load(args[0]), opt);
+    print_report(result);
     if (result.image.height == 0) {
         std::fprintf(stderr, "No image lines decoded.\n");
         return 1;
@@ -206,6 +241,7 @@ int main(int argc, char** argv) {
         if (cmd == "decode") return cmd_decode(args);
         if (cmd == "synth") return cmd_synth(args);
         if (cmd == "probe") return cmd_probe(args);
+        if (cmd == "decode-all") return cmd_decode_all(args);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "Error: %s\n", e.what());
         return 1;

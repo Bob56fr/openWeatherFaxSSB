@@ -425,4 +425,65 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
     return result;
 }
 
+std::vector<DecodeResult> decode_all(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
+    if (audio.sample_rate <= 0) throw std::invalid_argument("decode_all: invalid sample rate");
+    constexpr double kMinSegmentS = 90.0;  // phasing (30 s) + one minute of image
+
+    const auto in_rate = static_cast<double>(audio.sample_rate);
+    const auto decim = std::max<std::size_t>(1, static_cast<std::size_t>(in_rate / kWorkingRate));
+    dsp::FmDemodulator demod(in_rate, kCenterHz, kDemodCutoffHz, decim);
+    std::vector<float> sig;
+    sig.reserve(audio.samples.size() / decim + 1);
+    demod.process(audio.samples.data(), audio.samples.size(), sig);
+    const double rate = demod.output_rate();
+
+    // All APT start tones, in order (input sample positions).
+    std::vector<std::size_t> starts;
+    std::vector<double> tones;
+    if (opt.ioc) {
+        tones.push_back(apt_start_hz(*opt.ioc));
+    } else {
+        tones = {apt_start_hz(Ioc::k576), apt_start_hz(Ioc::k288)};
+    }
+    for (double tone : tones) {
+        std::size_t pos = 0;
+        while (const auto run = find_tone_run(sig, rate, tone, pos, kStartToneMinBlocks)) {
+            starts.push_back(run->begin * decim);
+            pos = run->end;
+        }
+    }
+    std::sort(starts.begin(), starts.end());
+    sig.clear();
+    sig.shrink_to_fit();
+
+    std::vector<std::size_t> bounds;
+    const auto min_len = static_cast<std::size_t>(kMinSegmentS * in_rate);
+    if (starts.empty() || starts.front() >= min_len) bounds.push_back(0);
+    bounds.insert(bounds.end(), starts.begin(), starts.end());
+    bounds.push_back(audio.samples.size());
+
+    std::vector<DecodeResult> results;
+    for (std::size_t i = 0; i + 1 < bounds.size(); ++i) {
+        const std::size_t a = bounds[i];
+        const std::size_t b = bounds[i + 1];
+        if (b - a < min_len) continue;
+        audio::AudioBuffer part;
+        part.sample_rate = audio.sample_rate;
+        part.samples.assign(audio.samples.begin() + static_cast<std::ptrdiff_t>(a),
+                            audio.samples.begin() + static_cast<std::ptrdiff_t>(b));
+        try {
+            DecodeResult r = decode(part, opt);
+            if (r.image.height < 20) continue;
+            const double offset_s = to_d(a) / in_rate;
+            if (r.report.apt_start_s >= 0.0) r.report.apt_start_s += offset_s;
+            r.report.image_start_s += offset_s;
+            r.report.image_end_s += offset_s;
+            results.push_back(std::move(r));
+        } catch (const std::exception&) {
+            // Unusable segment (noise, too short): skip it.
+        }
+    }
+    return results;
+}
+
 }  // namespace owfax::wefax

@@ -135,3 +135,22 @@ OWFAX_TEST(decode_detects_ioc_288) {
     OWFAX_CHECK(o.report.ioc == Ioc::k288);
     OWFAX_CHECK(o.correlation > 0.9);
 }
+
+OWFAX_TEST(decode_all_splits_transmissions) {
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.clock_ppm = 80.0;
+    auto first = modulate(make_test_chart(mod.ioc, 120), mod);
+    mod.ioc = Ioc::k288;
+    const auto second = modulate(make_test_chart(mod.ioc, 100), mod);
+    first.samples.insert(first.samples.end(), second.samples.begin(), second.samples.end());
+    const auto results = decode_all(first);
+    OWFAX_CHECK(results.size() == 2);
+    if (results.size() == 2) {
+        OWFAX_CHECK(results[0].report.ioc == Ioc::k576);
+        OWFAX_CHECK(results[1].report.ioc == Ioc::k288);
+        OWFAX_CHECK(results[0].image.height >= 118 && results[0].image.height <= 121);
+        OWFAX_CHECK(results[1].image.height >= 98 && results[1].image.height <= 101);
+        OWFAX_CHECK(results[1].report.apt_start_s > 100.0);
+    }
+}

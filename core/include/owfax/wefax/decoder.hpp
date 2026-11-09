@@ -48,4 +48,10 @@ struct DecodeResult {
 /// Throws std::invalid_argument / std::runtime_error on unusable input.
 DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& options = {});
 
+/// Splits a long recording into transmissions at each APT start tone and decodes
+/// each one. A leading partial transmission (recording started mid-chart) is decoded
+/// too when long enough. Report times are relative to the start of the recording.
+std::vector<DecodeResult> decode_all(const audio::AudioBuffer& audio,
+                                     const DecodeOptions& options = {});
+
 }  // namespace owfax::wefax

@@ -15,6 +15,10 @@ RIG_BAUD=${RIG_BAUD:-115200}
 RIGCTLD_PORT=${RIGCTLD_PORT:-4533}
 RIG_STATE_FILE=${RIG_STATE_FILE:-/tmp/owfax-rig-state.$$}
 
+# Talks to rigctld with its extended protocol ("+cmd" → header, "Key: value" lines,
+# "RPRT n"). Prints the values, one per line; fails if RPRT != 0. Uses a raw TCP
+# socket (fd 9) rather than the rigctl client, whose NET model differs between
+# Hamlib versions.
 rig() {
   case "$1" in
     f|m|l|u|t|F|M) ;;
@@ -23,7 +27,22 @@ rig() {
     T) [[ $# -eq 2 && $2 == 0 ]] || { echo "refused: T $*" >&2; return 1; } ;;
     *) echo "refused rig command: $1" >&2; return 1 ;;
   esac
-  rigctl -m 2 -r "127.0.0.1:$RIGCTLD_PORT" "$@"
+  printf '+%s\n' "$*" >&9 || return 1
+  local line first=1 rc=1
+  while IFS= read -r -t 5 line <&9; do
+    line=${line%$'\r'}
+    if [[ $line =~ ^RPRT\ (-?[0-9]+) ]]; then
+      rc=${BASH_REMATCH[1]}
+      break
+    fi
+    if ((first)); then first=0; continue; fi  # header line, e.g. "get_freq:"
+    if [[ $line == *": "* ]]; then echo "${line##*: }"; else echo "$line"; fi
+  done
+  [[ $rc == 0 ]]
+}
+
+rig_connect() {
+  exec 9<>"/dev/tcp/127.0.0.1/$RIGCTLD_PORT"
 }
 
 rig_start() {
@@ -31,12 +50,13 @@ rig_start() {
     echo "Another rigctld is running: refusing to share the serial port." >&2
     return 1
   fi
+  # -P RIG: PTT state is *read* over CI-V; keying stays impossible (whitelist above).
   rigctld -m "$RIG_MODEL" -r "$RIG_PORT" -s "$RIG_BAUD" -T 127.0.0.1 -t "$RIGCTLD_PORT" \
-    -P NONE -C dtr_state=OFF,rts_state=OFF >/tmp/owfax-rigctld.log 2>&1 &
+    -P RIG -C dtr_state=OFF,rts_state=OFF >/tmp/owfax-rigctld.log 2>&1 &
   RIGCTLD_PID=$!
   for _ in $(seq 1 20); do
     sleep 0.5
-    rig f >/dev/null 2>&1 && break
+    rig_connect 2>/dev/null && rig f >/dev/null 2>&1 && break
   done
   # Opening a serial port raises DTR/RTS: make sure the radio is in receive.
   local ptt
@@ -50,6 +70,7 @@ rig_start() {
 }
 
 rig_stop() {
+  exec 9>&- 2>/dev/null || true
   [[ -n ${RIGCTLD_PID:-} ]] && kill "$RIGCTLD_PID" 2>/dev/null && wait "$RIGCTLD_PID" 2>/dev/null
   RIGCTLD_PID=
 }
@@ -98,6 +119,7 @@ rig_rx_profile() {
   # Preamp off below 5 MHz (band noise dominates), PRE1 above.
   local pre=${PREAMP:-$(awk -v k="$khz" 'BEGIN { print (k < 5000 ? 0 : 1) }')}
   rig L PREAMP "$pre"
-  rig L USB_AF "${USB_AF:-0.5}"
+  # 0.15 ≈ −18 dBFS with AGC slow on the IC-7300MK2, no clipping (measured 2026-11-09).
+  rig L USB_AF "${USB_AF:-0.15}"
   echo "Tuned ${khz} kHz (dial ${dial} Hz PKTUSB), AGC slow, NB/NR/ANF off, ATT 0, PREAMP ${pre}"
 }

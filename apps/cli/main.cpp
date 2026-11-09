@@ -35,6 +35,7 @@ void print_usage() {
         "      --lpm 120|90|60           Lines per minute (default 120)\n"
         "      --ppm <value>             Force the sound card clock error (default: auto)\n"
         "      --shift <Hz>              Station black/white shift (default 800, DWD 850)\n"
+        "      --clicks                  FM click suppression (DSP-020); default: raw image\n"
         "  decode-all <in.wav> <prefix>  Split a long recording at each APT start and decode\n"
         "                                every transmission to <prefix>_NN.png (same options)\n"
         "\n"
@@ -141,6 +142,7 @@ void print_report(const owfax::wefax::DecodeResult& result) {
     std::printf("Black / white:  %.0f / %.0f Hz\n", r.black_hz, r.white_hz);
     std::printf("Tuning offset:  %+.1f Hz\n", r.tuning_offset_hz);
     std::printf("Clock error:    %+.1f ppm\n", r.clock_ppm);
+    if (r.clicks_repaired > 0) std::printf("Clicks fixed:   %zu samples\n", r.clicks_repaired);
     std::printf("Image:          %zu x %zu, %.1f s → %.1f s, quality %.0f %%\n", result.image.width,
                 result.image.height, r.image_start_s, r.image_end_s, quality * 100.0);
     // Machine-readable: whole transmission incl. APT tones, for corpus extraction.
@@ -174,6 +176,7 @@ owfax::wefax::DecodeOptions take_decode_options(Args& args) {
     if (auto v = take_option(args, "--lpm")) opt.lpm = parse_lpm(*v);
     if (auto v = take_option(args, "--ppm")) opt.clock_ppm = std::stod(*v);
     if (auto v = take_option(args, "--shift")) opt.shift_hz = std::stod(*v);
+    opt.suppress_clicks = take_flag(args, "--clicks");
     return opt;
 }
 

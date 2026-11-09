@@ -29,6 +29,8 @@ struct ModulatorOptions {
     double clock_ppm = 0.0;        ///< Simulated sound card clock error (causes slant).
     std::optional<double> snr_db;  ///< White noise, SNR measured in a 2.5 kHz bandwidth.
     std::uint32_t noise_seed = 1;
+    double impulses_per_s = 0.0;     ///< Impulsive noise (QRN): mean bursts per second.
+    double impulse_amplitude = 3.0;  ///< Burst amplitude (signal amplitude is 0.5).
 };
 
 /// Modulates `image` (any width, resampled to the line) into WEFAX audio.

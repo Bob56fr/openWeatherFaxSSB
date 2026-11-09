@@ -51,6 +51,8 @@ audio::AudioBuffer modulate(const GrayImage& image, const ModulatorOptions& o) {
 
     const double width = static_cast<double>(image.width);
     double phase = 0.0;
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    int burst_left = 0;
     for (std::size_t i = 0; i < out.samples.size(); ++i) {
         const double t = static_cast<double>(i) * dt;
         double lum = 0.0;
@@ -73,6 +75,15 @@ audio::AudioBuffer modulate(const GrayImage& image, const ModulatorOptions& o) {
         if (phase >= dsp::kTwoPi) phase -= dsp::kTwoPi;
         double s = kAmplitude * std::sin(phase);
         if (sigma > 0.0) s += gauss(rng);
+        if (o.impulses_per_s > 0.0) {
+            if (burst_left == 0 && uniform(rng) < o.impulses_per_s * dt) {
+                burst_left = 1 + static_cast<int>(uniform(rng) * 0.002 * rate);  // up to 2 ms
+            }
+            if (burst_left > 0) {
+                --burst_left;
+                s += o.impulse_amplitude * (2.0 * uniform(rng) - 1.0);
+            }
+        }
         out.samples[i] = static_cast<float>(s);
     }
     return out;

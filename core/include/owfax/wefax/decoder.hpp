@@ -21,6 +21,9 @@ struct DecodeOptions {
     std::optional<double> clock_ppm;  ///< Forced sound card clock error; estimated otherwise.
     double max_clock_ppm = 1000.0;    ///< Search range for the clock error estimate.
     double shift_hz = 800.0;          ///< Nominal black→white shift of the station (DWD: 850 Hz).
+    /// FM click suppression (DSP-020): repairs isolated demodulator spikes and samples far
+    /// outside the black–white range. Off by default: the raw image is the reference (DSP-030).
+    bool suppress_clicks = false;
 };
 
 struct DecodeReport {
@@ -36,6 +39,7 @@ struct DecodeReport {
     double image_start_s = 0.0;       ///< Start of the first image line.
     double image_end_s = 0.0;         ///< End of the last image line.
     std::vector<float> line_quality;  ///< Per image line: 1 = clean … 0 = unusable (DSP-008).
+    std::size_t clicks_repaired = 0;  ///< Samples repaired by click suppression (0 if off).
 };
 
 struct DecodeResult {

@@ -323,6 +323,49 @@ double sample_at(const std::vector<float>& v, double x) {
     return std::clamp(raw, 0.0, 1.0);
 }
 
+/// FM click suppression (DSP-020), on the instantaneous frequency (Hz).
+/// Real receptions (DWD 22:00 UTC, 2026-11-09): striped lines carry ~5x more
+/// out-of-range samples than clean ones. Two kinds of samples are repaired:
+///  - far outside [black − margin, white + margin]: certainly noise, replaced by the
+///    median of the nearby in-range samples;
+///  - single-sample spikes (differing from both neighbours by more than half the
+///    black–white span in the same direction): replaced by the 3-sample median.
+/// A 1-pixel line spans ~2 samples at 8 kHz and is therefore never touched.
+std::size_t suppress_clicks(std::vector<float>& f, double black, double white) {
+    const double span = white - black;
+    const auto lo = static_cast<float>(black - 0.25 * span);
+    const auto hi = static_cast<float>(white + 0.25 * span);
+    const auto spike = static_cast<float>(0.5 * span);
+    const std::vector<float> src(f);
+    const std::size_t n = src.size();
+    std::size_t repaired = 0;
+    float window[8];
+    for (std::size_t i = 1; i + 1 < n; ++i) {
+        const float v = src[i];
+        if (v < lo || v > hi) {
+            std::size_t k = 0;
+            for (std::size_t j = (i >= 4 ? i - 4 : 0); j <= std::min(n - 1, i + 4); ++j) {
+                if (j != i && src[j] >= lo && src[j] <= hi && k < 8) window[k++] = src[j];
+            }
+            if (k > 0) {
+                std::nth_element(window, window + k / 2, window + k);
+                f[i] = window[k / 2];
+            } else {
+                f[i] = std::clamp(v, lo, hi);
+            }
+            ++repaired;
+            continue;
+        }
+        const float a = src[i - 1];
+        const float b = src[i + 1];
+        if ((v - a > spike && v - b > spike) || (a - v > spike && b - v > spike)) {
+            f[i] = std::max(std::min(a, b), std::min(std::max(a, b), v));  // median of 3
+            ++repaired;
+        }
+    }
+    return repaired;
+}
+
 double ppm_of(double period, double nominal) {
     return (period / nominal - 1.0) * 1e6;
 }
@@ -374,6 +417,18 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
     rep.white_hz = lv.white;
     rep.tuning_offset_hz = (lv.black + lv.white) / 2.0 - kCenterHz;
     const double span = lv.white - lv.black;
+    // Line quality is always measured on the signal as received, before any repair,
+    // so that enhancement never hides a poor reception (DSP-008, DSP-030).
+    std::vector<std::uint8_t> received_ok(sig.size());
+    {
+        const double lo = lv.black - 0.3 * span;
+        const double hi = lv.white + 0.3 * span;
+        for (std::size_t i = 0; i < sig.size(); ++i) {
+            const double f = static_cast<double>(sig[i]);
+            received_ok[i] = (f > lo && f < hi) ? 1 : 0;
+        }
+    }
+    if (opt.suppress_clicks) rep.clicks_repaired = suppress_clicks(sig, lv.black, lv.white);
     for (float& v : sig) v = static_cast<float>((static_cast<double>(v) - lv.black) / span);
 
     // 4a. Coarse clock error from the phasing window.
@@ -438,7 +493,7 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
         const auto b = std::min(sig.size(), static_cast<std::size_t>(s + period));
         std::size_t good = 0;
         for (std::size_t i = a; i < b; ++i) {
-            if (sig[i] > -0.3F && sig[i] < 1.3F) ++good;
+            good += received_ok[i];
         }
         rep.line_quality[y] = b > a ? static_cast<float>(to_d(good) / to_d(b - a)) : 0.0F;
     }

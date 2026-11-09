@@ -191,3 +191,32 @@ OWFAX_TEST(decode_all_finds_apt_chopped_by_qrm) {
         OWFAX_CHECK(results[1].image.height >= 98 && results[1].image.height <= 101);
     }
 }
+
+OWFAX_TEST(click_suppression_improves_impulsive_noise) {
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.snr_db = 18.0;
+    mod.impulses_per_s = 20.0;  // heavy QRN
+    DecodeOptions raw;
+    DecodeOptions fixed;
+    fixed.suppress_clicks = true;
+    const auto chart = make_test_chart(mod.ioc, kLines);
+    const auto audio = modulate(chart, mod);
+    const auto a = decode(audio, raw);
+    const auto b = decode(audio, fixed);
+    const double ca = image_correlation(chart, a.image);
+    const double cb = image_correlation(chart, b.image);
+    std::printf("    impulsive noise: raw corr=%.3f, click-suppressed corr=%.3f (%zu repaired)\n",
+                ca, cb, b.report.clicks_repaired);
+    OWFAX_CHECK(b.report.clicks_repaired > 0);
+    OWFAX_CHECK(cb > ca + 0.01);
+}
+
+OWFAX_TEST(click_suppression_keeps_clean_image) {
+    // On a clean signal the filter must not damage thin lines.
+    ModulatorOptions mod;
+    DecodeOptions fixed;
+    fixed.suppress_clicks = true;
+    const Outcome o = run(mod, fixed);
+    OWFAX_CHECK(o.correlation > 0.99);
+}

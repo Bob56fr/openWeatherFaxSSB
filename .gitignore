@@ -1,0 +1,25 @@
+# Build trees
+/build/
+/build-*/
+/out/
+CMakeUserPresets.json
+
+# IDEs
+.vs/
+.idea/
+*.user
+.vscode/*
+!.vscode/extensions.json
+
+# Android (future app/)
+.gradle/
+local.properties
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local captures (do not commit personal recordings outside tests/corpus)
+*.raw.wav

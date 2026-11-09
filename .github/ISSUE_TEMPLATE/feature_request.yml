@@ -1,0 +1,20 @@
+name: Proposition / Feature request
+description: Proposer une fonctionnalité ou une amélioration. / Suggest an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Besoin à bord / Use case
+      description: Quelle situation de navigation ou de réception motive la demande ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposition / Proposal
+  - type: input
+    id: spec
+    attributes:
+      label: Exigences liées / Related spec IDs
+      placeholder: "ex. PLN-001, NOT-006"

@@ -1,0 +1,45 @@
+name: Bug / Anomalie
+description: Signaler un problème de réception, de décodage ou de fonctionnement. / Report a problem.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Que s'est-il passé ? / What happened?
+      description: Ce que vous attendiez et ce que vous avez obtenu. Joignez une capture de l'image reçue si possible.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version (owfax-cli --version ou page Diagnostic)
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plateforme / Platform
+      options: [Android, Windows 10/11, Windows 7/8.1, Linux desktop, Raspberry Pi (station), Autre / Other]
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Matériel / Device
+      placeholder: "ex. Samsung Galaxy S5, Android 6 · Pi Zero 2 W · PC Win7 32 bits"
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source du signal / Signal source
+      options: [Jack casque/ligne, Micro du terminal, Carte son USB, Bluetooth, SDR, Transceiver CAT + USB audio, Fichier WAV]
+  - type: input
+    id: station
+    attributes:
+      label: Station, fréquence, date/heure UTC
+      placeholder: "ex. DDH3 Pinneberg 7880 kHz, 2026-11-09 11:20 UTC"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Journaux / Logs
+      description: Depuis la page Diagnostic. Un enregistrement WAV de la réception est très utile (lien de téléchargement).
+      render: text

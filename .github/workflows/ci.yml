@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Builds and tests the core on every target of spec §2.1 (TST-003).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OWFAX_COMMON_FLAGS: -DOWFAX_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, compiler: gcc,   runner: ubuntu-24.04,     cxx: g++ }
+          - { arch: amd64, compiler: clang, runner: ubuntu-24.04,     cxx: clang++ }
+          - { arch: arm64, compiler: gcc,   runner: ubuntu-24.04-arm, cxx: g++ }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} $OWFAX_COMMON_FLAGS
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke test CLI
+        run: ./build/apps/cli/owfax-cli --version && ./build/apps/cli/owfax-cli --capabilities
+
+  linux-armhf:
+    name: Linux armhf (Raspberry Pi 32-bit, cross + qemu)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build g++-arm-linux-gnueabihf qemu-user
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja $OWFAX_COMMON_FLAGS
+          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-armhf.cmake
+      - name: Build
+        run: cmake --build build
+      - name: Test (qemu-arm)
+        run: ctest --test-dir build --output-on-failure
+
+  debian-oldest:
+    name: Debian 11 (oldest supported CMake 3.18)
+    runs-on: ubuntu-24.04
+    container: debian:bullseye
+    steps:
+      - name: Install tools
+        run: apt-get update && apt-get install -y --no-install-recommends cmake g++ make git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Configure, build, test
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B build $OWFAX_COMMON_FLAGS
+          cmake --build build -j"$(nproc)"
+          cd build && ctest --output-on-failure
+
+  windows:
+    name: Windows ${{ matrix.arch }} (MSVC, Win7 API level)
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, Win32]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.arch }} -DOWFAX_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Smoke test CLI
+        run: |
+          build\apps\cli\Release\owfax-cli.exe --version
+          build\apps\cli\Release\owfax-cli.exe --capabilities
+      - uses: actions/upload-artifact@v4
+        with:
+          name: owfax-cli-windows-${{ matrix.arch }}
+          path: build/apps/cli/Release/owfax-cli.exe
+
+  android:
+    name: Android ${{ matrix.abi }} (API 21)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja $OWFAX_COMMON_FLAGS
+          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"
+          -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-21
+          -DOWFAX_BUILD_TESTS=OFF
+      - name: Build
+        run: cmake --build build
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting
+        run: |
+          find core apps tests \( -name '*.hpp' -o -name '*.cpp' \) -print0 \
+            | xargs -0 clang-format-18 --dry-run --Werror

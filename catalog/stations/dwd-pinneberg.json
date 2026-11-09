@@ -3,7 +3,10 @@
   "id": "dwd-pinneberg",
   "name": "Deutscher Wetterdienst — Hamburg/Pinneberg",
   "country": "DE",
-  "position": { "lat": 53.67, "lon": 9.81 },
+  "position": {
+    "lat": 53.67,
+    "lon": 9.81
+  },
   "wefax": {
     "shift_hz": 850,
     "white_offset_hz": 425,
@@ -11,74 +14,293 @@
     "default_lpm": 120,
     "default_ioc": 576,
     "frequencies": [
-      { "callsign": "DDH3", "assigned_khz": 3855.0, "power_kw": 10.0, "emission": "F1C" },
-      { "callsign": "DDK3", "assigned_khz": 7880.0, "power_kw": 20.0, "emission": "F1C" },
-      { "callsign": "DDK6", "assigned_khz": 13882.5, "power_kw": 20.0, "emission": "F1C" }
+      {
+        "callsign": "DDH3",
+        "assigned_khz": 3855.0,
+        "power_kw": 10.0,
+        "emission": "F1C"
+      },
+      {
+        "callsign": "DDK3",
+        "assigned_khz": 7880.0,
+        "power_kw": 20.0,
+        "emission": "F1C"
+      },
+      {
+        "callsign": "DDK6",
+        "assigned_khz": 13882.5,
+        "power_kw": 20.0,
+        "emission": "F1C"
+      }
     ]
   },
   "sources": [
     {
+      "id": "weatherfax-2024",
+      "url": "https://weatherfax.com/wp-content/uploads/2024/09/DWD-Jun-Oct-2024.pdf",
+      "retrieved": "2026-11-09",
+      "valid": "2024-06-10/2024-10-01",
+      "note": "Most recent schedule found (PDF created 2024-09-03). Used as the reference schedule."
+    },
+    {
       "id": "dwd-current",
       "url": "https://www.dwd.de/DE/derdwd/it/_functions/Teasergroup/sendeplan_seefax.pdf?__blob=publicationFile&v=2",
       "retrieved": "2026-11-09",
-      "note": "Undated; still mentions the GME model (retired 2015)."
+      "note": "Undated; still mentions the GME model (retired 2015). Superseded by weatherfax-2024 (different times)."
     },
     {
       "id": "dwd-2014",
       "url": "https://www.dwd.de/DE/fachnutzer/schifffahrt/funkausstrahlung/sendeplan_fax_052014.pdf?__blob=publicationFile&v=1",
       "retrieved": "2026-11-09",
-      "note": "PDF created 2014-09-30."
+      "note": "PDF created 2014-09-30. Superseded by weatherfax-2024 (different times)."
     },
     {
       "id": "broadcast",
       "note": "Authoritative: the schedule chart broadcast daily at 11:11 UTC. Not yet captured."
     }
   ],
-  "verification": "Times below are unconfirmed for 2026 until compared with the 11:11 UTC broadcast. 'sources' lists which documents contain each entry; 'confirmed' records real receptions.",
+  "verification": "All times are UTC (Paris = UTC+1 in winter, UTC+2 in summer). The reference schedule is the Jun-Oct 2024 one; the 2026 winter schedule may differ. Confirm against the schedule charts broadcast at 14:25 and 14:45 UTC. 'observed' lists real receptions.",
   "schedule": [
-    { "utc": "04:30", "minutes": 19, "valid": "00", "content": "Surface analysis with station plots, North Atlantic, Europe", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "05:12", "minutes": 11, "valid": "18 (prev. day run)", "content": "30 h surface forecast", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "05:25", "minutes": 19, "valid": "00", "content": "Surface analysis North Atlantic, movement arrows, significant weather, ice", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "05:46", "minutes": 11, "valid": "03", "content": "Tropical cyclone information, North Atlantic (season only)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "05:59", "minutes": 11, "valid": "00", "content": "+12/+24 h 500 hPa height+temperature, surface pressure", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "06:12", "minutes": 11, "valid": "00", "content": "+12/+24 h 850 hPa height+temperature, 700 hPa relative humidity", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "06:25", "minutes": 11, "valid": "00", "content": "+36/+48 h 500 hPa height+temperature, surface pressure", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "06:38", "minutes": 11, "valid": "00", "content": "+36/+48 h 850 hPa height+temperature, 700 hPa relative humidity", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "06:51", "minutes": 11, "valid": "00", "content": "+60/+72 h 500 hPa height+temperature, surface pressure", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "07:04", "minutes": 11, "valid": "00", "content": "+60/+72 h 850 hPa height+temperature, 700 hPa relative humidity", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "07:17", "minutes": 11, "valid": "18 (prev. day run)", "content": "Repeat of 05:12 surface forecast", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "07:30", "minutes": 11, "valid": "00", "content": "48 h surface forecast", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "07:43", "minutes": 19, "valid": "00", "content": "Repeat of 05:25 surface analysis North Atlantic", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "08:04", "minutes": 11, "valid": "00", "content": "Surface forecast: 72 h (dwd-current) or 84 h (dwd-2014)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "08:17", "minutes": 11, "valid": "00", "content": "Surface forecast: 96 h (dwd-current) or 108 h (dwd-2014)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "08:30", "minutes": 11, "valid": "00", "content": "+24 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "08:42", "minutes": 11, "valid": "00", "content": "+48 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "08:54", "minutes": 11, "valid": "00", "content": "+72 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "09:06", "minutes": 11, "valid": "00", "content": "+96 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "09:30", "minutes": 11, "valid": "00", "content": "Ice chart North-West Atlantic (CIS or International Ice Patrol)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "09:45", "minutes": 20, "valid": "00", "content": "North Sea water temperatures (BSH)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "10:07", "minutes": 20, "valid": "00", "content": "Ice chart western Baltic (only when ice conditions require)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "10:29", "minutes": 19, "valid": "00", "content": "48 h sea state forecast North Atlantic", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "10:50", "minutes": 19, "valid": "06", "content": "Surface analysis with station plots, North Atlantic, Europe", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "11:11", "minutes": 19, "valid": null, "content": "Facsimile broadcast schedule (part 1)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "11:32", "minutes": 11, "valid": null, "content": "Test chart (dwd-current) or schedule part 2 (dwd-2014)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "11:45", "minutes": 19, "valid": "06", "content": "Repeat of 10:50 surface analysis", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "12:05", "minutes": 11, "valid": "18 (prev. day run)", "content": "Repeat of 05:12", "sources": ["dwd-2014"] },
-    { "utc": "12:20", "minutes": 11, "valid": "00", "content": "Repeat of 07:30", "sources": ["dwd-2014"] },
-    { "utc": "15:20", "minutes": 19, "valid": "09", "content": "Swedish Baltic ice chart part 1 (Norrköping) or BSH special-area ice chart", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "15:40", "minutes": 19, "valid": "09", "content": "Swedish Baltic ice chart part 2 (dwd-current) or European Arctic ice chart (dwd-2014)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "16:00", "minutes": 19, "valid": "12", "content": "Surface analysis with station plots, North Atlantic, Europe", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "18:00", "minutes": 19, "valid": "12", "content": "Surface analysis North Atlantic, movement arrows, significant weather, ice", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "18:21", "minutes": 11, "valid": "15", "content": "Tropical cyclone information, North Atlantic (season only)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "18:34", "minutes": 11, "valid": "12", "content": "24 h surface forecast", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "18:47", "minutes": 11, "valid": "12", "content": "48 h surface forecast", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "19:00", "minutes": 11, "valid": "12", "content": "Surface forecast: 72 h (dwd-current) or 84 h (dwd-2014)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "19:13", "minutes": 11, "valid": "12", "content": "+24 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "19:26", "minutes": 11, "valid": "12", "content": "+48 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "19:39", "minutes": 11, "valid": "12", "content": "+72 h wind sea and swell, 10 m wind", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "21:00", "minutes": 11, "valid": "12", "content": "Ice chart North-West Atlantic (CIS or International Ice Patrol)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "21:15", "minutes": 20, "valid": "15", "content": "Baltic ice chart (only when ice conditions require)", "sources": ["dwd-current", "dwd-2014"] },
-    { "utc": "21:37", "minutes": 19, "valid": "12", "content": "48 h sea state forecast North Atlantic (21:36 in dwd-2014)", "sources": ["dwd-current", "dwd-2014"], "confirmed": ["2026-11-09 3855 kHz, end of chart received"] },
-    { "utc": "22:00", "minutes": 19, "valid": "18", "content": "Surface analysis with station plots, North Atlantic, Europe", "sources": ["dwd-current", "dwd-2014"] }
-  ]
+    {
+      "utc": "04:30",
+      "content": "MSL weather chart N Atlantic, Europe"
+    },
+    {
+      "utc": "05:00",
+      "content": "H+00, H+24 MSL pressure, wind (10 m)"
+    },
+    {
+      "utc": "05:12",
+      "content": "H+36 MSL pressure"
+    },
+    {
+      "utc": "05:25",
+      "content": "MSL pressure analysis, significant weather, ice"
+    },
+    {
+      "utc": "06:38",
+      "content": "N Atlantic tropical storms information (during season)"
+    },
+    {
+      "utc": "06:51",
+      "content": "H+12, H+24 500 hPa H+T, MSL pressure"
+    },
+    {
+      "utc": "07:04",
+      "content": "H+12, H+24 850 hPa H+T, 700 hPa relative humidity"
+    },
+    {
+      "utc": "07:17",
+      "content": "H+36 MSL pressure"
+    },
+    {
+      "utc": "07:30",
+      "content": "H+48 MSL pressure"
+    },
+    {
+      "utc": "07:43",
+      "content": "H+60 MSL pressure"
+    },
+    {
+      "utc": "08:04",
+      "content": "H+84 MSL pressure"
+    },
+    {
+      "utc": "08:17",
+      "content": "H+108 MSL pressure"
+    },
+    {
+      "utc": "08:30",
+      "content": "H+00, H+24 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "08:43",
+      "content": "Analysis 500 hPa H (special broadcast)"
+    },
+    {
+      "utc": "08:55",
+      "content": "H+36, H+48 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "09:07",
+      "content": "H+24 925 hPa, 700 hPa relative humidity (special broadcast)"
+    },
+    {
+      "utc": "09:19",
+      "content": "H+36 925 hPa, 700 hPa relative humidity (special broadcast)"
+    },
+    {
+      "utc": "09:31",
+      "content": "H+72, H+96 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "09:43",
+      "content": "H+24 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "09:55",
+      "content": "Sea surface temperature, North Sea"
+    },
+    {
+      "utc": "10:16",
+      "content": "H+48 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "10:28",
+      "content": "H+72 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "10:40",
+      "content": "H+48 N Atlantic wave prediction"
+    },
+    {
+      "utc": "11:00",
+      "content": "Surface weather chart"
+    },
+    {
+      "utc": "11:20",
+      "content": "H+96 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "11:32",
+      "content": "H+36, H+48 500 hPa H+T, MSL pressure"
+    },
+    {
+      "utc": "11:44",
+      "content": "H+36, H+48 850 hPa H+T, 700 hPa relative humidity"
+    },
+    {
+      "utc": "12:36",
+      "content": "Ice condition chart western Baltic"
+    },
+    {
+      "utc": "12:57",
+      "content": "Rebroadcast of 0717"
+    },
+    {
+      "utc": "13:14",
+      "content": "Rebroadcast of 0730"
+    },
+    {
+      "utc": "13:25",
+      "content": "Rebroadcast of 0830"
+    },
+    {
+      "utc": "13:37",
+      "content": "Rebroadcast of 0855"
+    },
+    {
+      "utc": "13:49",
+      "content": "H+60, H+72 500 hPa H+T, MSL pressure"
+    },
+    {
+      "utc": "14:01",
+      "content": "H+60, H+72 850 hPa H+T, 700 hPa relative humidity"
+    },
+    {
+      "utc": "14:13",
+      "content": "Rebroadcast of 0931"
+    },
+    {
+      "utc": "14:25",
+      "content": "Broadcast schedule (part 1)"
+    },
+    {
+      "utc": "14:45",
+      "content": "Broadcast schedule (part 2)"
+    },
+    {
+      "utc": "15:08",
+      "content": "Ice condition chart NW Atlantic"
+    },
+    {
+      "utc": "15:20",
+      "content": "Ice condition chart western Baltic"
+    },
+    {
+      "utc": "15:40",
+      "content": "Ice condition chart Arctic sea"
+    },
+    {
+      "utc": "16:36",
+      "content": "Surface weather chart N Atlantic, Europe"
+    },
+    {
+      "utc": "18:00",
+      "content": "MSL pressure analysis, significant weather, ice"
+    },
+    {
+      "utc": "18:21",
+      "content": "N Atlantic tropical storms information (during season)"
+    },
+    {
+      "utc": "18:34",
+      "content": "H+48 MSL pressure"
+    },
+    {
+      "utc": "18:47",
+      "content": "H+60 MSL pressure"
+    },
+    {
+      "utc": "19:00",
+      "content": "H+84 MSL pressure"
+    },
+    {
+      "utc": "19:12",
+      "content": "H+00, H+24 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "19:24",
+      "content": "Analysis 500 hPa H (special broadcast)"
+    },
+    {
+      "utc": "19:36",
+      "content": "H+36, H+48 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "20:35",
+      "content": "H+24 925 hPa, 700 hPa relative humidity (special broadcast)"
+    },
+    {
+      "utc": "20:47",
+      "content": "H+36 925 hPa, 700 hPa relative humidity (special broadcast)"
+    },
+    {
+      "utc": "20:59",
+      "content": "H+72, H+96 MSL pressure, wind (10 m) (special broadcast)"
+    },
+    {
+      "utc": "21:11",
+      "content": "H+24 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "21:23",
+      "content": "H+48 sea and swell, wind and swell direction"
+    },
+    {
+      "utc": "21:35",
+      "content": "H+72 sea and swell, wind and swell direction",
+      "observed": []
+    },
+    {
+      "utc": "21:47",
+      "content": "Ice condition chart NW Atlantic"
+    },
+    {
+      "utc": "22:00",
+      "content": "MSL weather chart N Atlantic, Europe",
+      "observed": []
+    },
+    {
+      "utc": "22:20",
+      "content": "Ice condition chart western Baltic",
+      "observed": []
+    },
+    {
+      "utc": "22:40",
+      "content": "H+48 N Atlantic wave prediction",
+      "observed": []
+    }
+  ],
+  "schedule_source": "weatherfax-2024"
 }

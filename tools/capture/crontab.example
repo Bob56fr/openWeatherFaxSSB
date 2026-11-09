@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Unattended WEFAX receptions on the development station (all times UTC; the
+# station clock must be UTC). Adds to the existing crontab without replacing it:
+#   (crontab -l 2>/dev/null; cat tools/capture/crontab.example) | crontab -
+# Remove later with:
+#   crontab -l | grep -v owfax-session | crontab -
+#
+# Days: Tue 10 and Wed 11 November 2026. Each line holds the radio exclusively
+# (lock), restores the rig state at the end and respects >= 5 s between frequency
+# changes (rig_safe.sh, spec CAT-009).
+PATH=/usr/local/bin:/usr/bin:/bin
+R=/home/bob/dev/openWeatherFaxSSB/tools/capture/run_session.sh
+24 4  10,11 11 * $R DWD 07:15 850 3855 7880 >/dev/null 2>&1           # owfax-session
+20 7  10,11 11 * $R GYA 08:58 800 8040 11086.5 4610 >/dev/null 2>&1   # owfax-session
+38 9  10,11 11 * $R DWD 11:20 850 7880 13882.5 3855 >/dev/null 2>&1   # owfax-session
+19 14 10,11 11 * $R DWD 15:05 850 7880 13882.5 3855 >/dev/null 2>&1   # owfax-session
+10 15 10,11 11 * $R GYA 16:05 800 11086.5 8040 >/dev/null 2>&1        # owfax-session
+30 16 10,11 11 * $R DWD 19:50 850 7880 3855 13882.5 >/dev/null 2>&1   # owfax-session
+28 21 10,11 11 * $R DWD 22:20 850 3855 7880 >/dev/null 2>&1           # owfax-session
+25 22 10,11 11 * $R GYA 23:59 800 4610 2618.5 8040 >/dev/null 2>&1    # owfax-session

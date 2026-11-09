@@ -7,12 +7,15 @@ add_executable(owfax_tests
   test_main.cpp
   test_build_info.cpp
   test_capabilities.cpp
+  test_corpus.cpp
   test_dsp.cpp
   test_files.cpp
   test_wefax_decode.cpp
   test_wefax_params.cpp)
 target_link_libraries(owfax_tests PRIVATE owfax::core)
 owfax_set_target_options(owfax_tests)
+target_compile_definitions(owfax_tests PRIVATE
+  OWFAX_CORPUS_TSV="${CMAKE_CURRENT_SOURCE_DIR}/corpus/corpus.tsv")
 
 add_test(NAME owfax_tests COMMAND owfax_tests)
 set_tests_properties(owfax_tests PROPERTIES TIMEOUT 600)

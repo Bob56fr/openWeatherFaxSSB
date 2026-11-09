@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "owfax/audio/resample.hpp"
 #include "owfax/audio/wav.hpp"
 #include "owfax/build_info.hpp"
 #include "owfax/capabilities.hpp"
@@ -33,6 +34,7 @@ void print_usage() {
         "      --ioc 576|288             Force the IOC (default: from APT start tone)\n"
         "      --lpm 120|90|60           Lines per minute (default 120)\n"
         "      --ppm <value>             Force the sound card clock error (default: auto)\n"
+        "      --shift <Hz>              Station black/white shift (default 800, DWD 850)\n"
         "  decode-all <in.wav> <prefix>  Split a long recording at each APT start and decode\n"
         "                                every transmission to <prefix>_NN.png (same options)\n"
         "\n"
@@ -46,7 +48,11 @@ void print_usage() {
         "      --no-start                Omit the APT start tone (missed start)\n"
         "      --png <chart.png>         Also write the source test chart\n"
         "\n"
-        "  probe <in.wav>                Quick WEFAX presence/quality check (one line, CSV)\n");
+        "  probe <in.wav>                Quick WEFAX presence/quality check (one line, CSV)\n"
+        "\n"
+        "  cut <in.wav> <out.wav>        Extract and/or resample a recording\n"
+        "      --from <s> --to <s>       Time range (default: whole file)\n"
+        "      --rate <Hz>               Output sample rate (default: unchanged)\n");
 }
 
 int cmd_probe(const Args& args) {
@@ -137,6 +143,29 @@ void print_report(const owfax::wefax::DecodeResult& result) {
     std::printf("Clock error:    %+.1f ppm\n", r.clock_ppm);
     std::printf("Image:          %zu x %zu, %.1f s → %.1f s, quality %.0f %%\n", result.image.width,
                 result.image.height, r.image_start_s, r.image_end_s, quality * 100.0);
+    // Machine-readable: whole transmission incl. APT tones, for corpus extraction.
+    const double seg_start = r.apt_start_found ? r.apt_start_s : r.image_start_s;
+    std::printf("Segment:        %.1f %.1f\n", seg_start, r.image_end_s + 10.0);
+}
+
+int cmd_cut(Args args) {
+    const auto from = take_option(args, "--from");
+    const auto to = take_option(args, "--to");
+    const auto rate = take_option(args, "--rate");
+    if (args.size() != 2) {
+        print_usage();
+        return 2;
+    }
+    auto audio = owfax::audio::read_wav(args[0]);
+    if (from || to) {
+        audio = owfax::audio::slice(audio, from ? std::stod(*from) : 0.0,
+                                    to ? std::stod(*to) : audio.duration_s());
+    }
+    if (rate) audio = owfax::audio::resample(audio, std::stoi(*rate));
+    owfax::audio::write_wav(args[1], audio);
+    std::printf("Written %s: %.1f s at %d Hz\n", args[1].c_str(), audio.duration_s(),
+                audio.sample_rate);
+    return 0;
 }
 
 owfax::wefax::DecodeOptions take_decode_options(Args& args) {
@@ -244,6 +273,7 @@ int main(int argc, char** argv) {
         if (cmd == "synth") return cmd_synth(args);
         if (cmd == "probe") return cmd_probe(args);
         if (cmd == "decode-all") return cmd_decode_all(args);
+        if (cmd == "cut") return cmd_cut(args);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "Error: %s\n", e.what());
         return 1;

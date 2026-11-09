@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 openWeatherFaxSSB contributors
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
+#include "owfax/audio/resample.hpp"
 #include "owfax/dsp/fir.hpp"
 #include "owfax/dsp/fm_demod.hpp"
 #include "owfax_test.hpp"
@@ -50,4 +52,31 @@ OWFAX_TEST(fm_demod_measures_tone_frequency) {
         mean /= static_cast<double>(n);
         OWFAX_CHECK_NEAR(mean, 2123.0, 0.5);
     }
+}
+
+OWFAX_TEST(resample_keeps_tone_and_duration) {
+    owfax::audio::AudioBuffer a;
+    a.sample_rate = 48000;
+    a.samples = sine(1900.0, 48000.0, 48000 * 2);
+    const auto b = owfax::audio::resample(a, 11025);
+    OWFAX_CHECK(b.sample_rate == 11025);
+    OWFAX_CHECK_NEAR(b.duration_s(), 2.0, 0.01);
+    // Frequency preserved: demodulate the resampled tone.
+    owfax::dsp::FmDemodulator demod(11025.0, 1900.0, 1200.0, 1);
+    std::vector<float> freq;
+    demod.process(b.samples.data(), b.samples.size(), freq);
+    double mean = 0.0;
+    std::size_t n = 0;
+    for (std::size_t i = freq.size() / 4; i < freq.size() * 3 / 4; ++i, ++n) {
+        mean += static_cast<double>(freq[i]);
+    }
+    OWFAX_CHECK_NEAR(mean / static_cast<double>(n), 1900.0, 0.5);
+    // Amplitude preserved (passband gain ~1).
+    double peak = 0.0;
+    for (std::size_t i = b.samples.size() / 4; i < b.samples.size() * 3 / 4; ++i) {
+        peak = std::max(peak, static_cast<double>(std::fabs(b.samples[i])));
+    }
+    OWFAX_CHECK_NEAR(peak, 0.5, 0.02);
+    const auto s = owfax::audio::slice(a, 0.5, 1.0);
+    OWFAX_CHECK(s.samples.size() == 24000);
 }

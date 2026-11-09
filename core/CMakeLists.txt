@@ -7,6 +7,7 @@ configure_file(
   @ONLY)
 
 add_library(owfax_core
+  src/audio/resample.cpp
   src/audio/wav.cpp
   src/capabilities.cpp
   src/dsp/fir.cpp

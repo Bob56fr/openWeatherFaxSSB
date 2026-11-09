@@ -54,6 +54,13 @@ ctest --test-dir build --output-on-failure      # CMake ≥ 3.20, sinon : cd bui
 ./build/apps/cli/owfax-cli --capabilities
 ```
 
+Décoder un enregistrement, ou tester avec un signal synthétique (désaccord BLU, erreur d'horloge, bruit) :
+
+```sh
+owfax-cli synth test.wav --offset 60 --ppm 250 --snr 15 --png source.png
+owfax-cli decode test.wav carte.png
+```
+
 Avec CMake ≥ 3.21, des presets sont disponibles : `cmake --preset dev`, `msvc-x64`, `msvc-x86`, `linux-armhf`, `android-arm64`, `android-armv7` (voir [CMakePresets.json](CMakePresets.json)).
 
 ## Structure du dépôt

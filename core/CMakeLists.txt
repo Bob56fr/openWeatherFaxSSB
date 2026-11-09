@@ -7,7 +7,13 @@ configure_file(
   @ONLY)
 
 add_library(owfax_core
+  src/audio/wav.cpp
   src/capabilities.cpp
+  src/dsp/fir.cpp
+  src/dsp/fm_demod.cpp
+  src/image/png_writer.cpp
+  src/wefax/decoder.cpp
+  src/wefax/modulator.cpp
   "${CMAKE_CURRENT_BINARY_DIR}/generated/build_info.cpp")
 add_library(owfax::core ALIAS owfax_core)
 

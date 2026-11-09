@@ -8,6 +8,7 @@
 #include "owfax/audio/resample.hpp"
 #include "owfax/dsp/fir.hpp"
 #include "owfax/dsp/fm_demod.hpp"
+#include "owfax/wefax/probe.hpp"
 #include "owfax_test.hpp"
 
 using owfax::dsp::kTwoPi;
@@ -79,4 +80,13 @@ OWFAX_TEST(resample_keeps_tone_and_duration) {
     OWFAX_CHECK_NEAR(peak, 0.5, 0.02);
     const auto s = owfax::audio::slice(a, 0.5, 1.0);
     OWFAX_CHECK(s.samples.size() == 24000);
+}
+
+OWFAX_TEST(probe_rejects_idle_carrier) {
+    owfax::audio::AudioBuffer carrier;
+    carrier.sample_rate = 11025;
+    carrier.samples = sine(2325.0, 11025.0, 11025 * 20);  // DWD idle "white"
+    const auto idle = owfax::wefax::probe(carrier);
+    OWFAX_CHECK(idle.freq_spread_hz < 100.0);
+    OWFAX_CHECK(idle.score < 0.05);
 }

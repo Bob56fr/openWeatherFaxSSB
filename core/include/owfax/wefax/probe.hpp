@@ -17,6 +17,8 @@ struct ProbeResult {
     double fm_in_range = 0.0;       ///< Demodulated samples inside 1400–2400 Hz.
     double apt_start_ratio = 0.0;   ///< Max 300/675 Hz tone ratio over 0.25 s blocks.
     double apt_stop_ratio = 0.0;    ///< Max 450 Hz tone ratio over 0.25 s blocks.
+    double freq_spread_hz = 0.0;    ///< p95 − p5 of the demodulated frequency: ~0 for an idle
+                                    ///< carrier, ≥ 500 Hz when black and white are both present.
     double score = 0.0;             ///< 0 … 1 overall WEFAX likelihood × quality.
 };
 

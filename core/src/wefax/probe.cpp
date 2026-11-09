@@ -64,8 +64,21 @@ ProbeResult probe(const audio::AudioBuffer& audio) {
             std::max(r.apt_stop_ratio, dsp::tone_ratio(&freq[pos], tblock, kAptStopHz, frate));
     }
 
+    if (!freq.empty()) {
+        std::vector<float> sorted(freq);
+        const auto p = [&](double q) {
+            auto it = sorted.begin() +
+                      static_cast<std::ptrdiff_t>(q * static_cast<double>(sorted.size() - 1));
+            std::nth_element(sorted.begin(), it, sorted.end());
+            return static_cast<double>(*it);
+        };
+        r.freq_spread_hz = p(0.95) - p(0.05);
+    }
+
     // White noise gives fm_in_range ≈ 0.6 and band_fraction ≈ 0.4; clean WEFAX ≈ 1.0 for both.
-    const double fm_score = std::clamp((r.fm_in_range - 0.6) / 0.35, 0.0, 1.0);
+    // An idle carrier (DWD sends white between charts) has a tiny frequency spread.
+    const double fm_score = std::clamp((r.fm_in_range - 0.6) / 0.35, 0.0, 1.0) *
+                            std::clamp((r.freq_spread_hz - 150.0) / 350.0, 0.0, 1.0);
     const double band_score = std::clamp((r.band_fraction - 0.4) / 0.4, 0.0, 1.0);
     const double level_ok = (r.rms_dbfs > -50.0 && r.clipped_fraction < 0.001) ? 1.0 : 0.5;
     r.score = fm_score * band_score * level_ok;

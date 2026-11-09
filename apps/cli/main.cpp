@@ -64,9 +64,9 @@ int cmd_probe(const Args& args) {
     const auto r = owfax::wefax::probe(audio);
     std::printf(
         "score=%.2f rms_dbfs=%.1f clipped=%.4f band=%.2f fm_in_range=%.2f apt_start=%.2f "
-        "apt_stop=%.2f\n",
+        "apt_stop=%.2f spread_hz=%.0f\n",
         r.score, r.rms_dbfs, r.clipped_fraction, r.band_fraction, r.fm_in_range, r.apt_start_ratio,
-        r.apt_stop_ratio);
+        r.apt_stop_ratio, r.freq_spread_hz);
     return 0;
 }
 

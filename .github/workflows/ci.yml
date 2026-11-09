@@ -67,16 +67,17 @@ jobs:
     runs-on: ubuntu-24.04
     container: debian:bullseye
     steps:
-      # Bullseye is end-of-life: its mirrors are moving to archive.debian.org and the
-      # security pool is gone. Security updates are irrelevant for a build check.
+      # Bullseye is end-of-life: packages now live on archive.debian.org. All three
+      # suites are needed so that versions match those already in the image.
       - name: Point apt to the Debian archive
         run: |
           rm -f /etc/apt/sources.list.d/*
-          echo 'deb http://archive.debian.org/debian bullseye main' > /etc/apt/sources.list
-          if ! apt-get -o Acquire::Check-Valid-Until=false update -q; then
-            echo 'deb http://deb.debian.org/debian bullseye main' > /etc/apt/sources.list
-            apt-get update -q
-          fi
+          cat > /etc/apt/sources.list <<'LIST'
+          deb http://archive.debian.org/debian bullseye main
+          deb http://archive.debian.org/debian bullseye-updates main
+          deb http://archive.debian.org/debian-security bullseye-security main
+          LIST
+          apt-get -o Acquire::Check-Valid-Until=false update -q
       - name: Install tools
         run: >
           apt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends

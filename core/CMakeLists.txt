@@ -14,6 +14,7 @@ add_library(owfax_core
   src/image/png_writer.cpp
   src/wefax/decoder.cpp
   src/wefax/modulator.cpp
+  src/wefax/probe.cpp
   "${CMAKE_CURRENT_BINARY_DIR}/generated/build_info.cpp")
 add_library(owfax::core ALIAS owfax_core)
 

@@ -16,6 +16,7 @@
 #include "owfax/capabilities.hpp"
 #include "owfax/wefax/decoder.hpp"
 #include "owfax/wefax/modulator.hpp"
+#include "owfax/wefax/probe.hpp"
 
 namespace {
 
@@ -41,7 +42,24 @@ void print_usage() {
         "      --ppm <value>             Simulated sound card clock error\n"
         "      --snr <dB>                White noise, SNR in 2.5 kHz\n"
         "      --no-start                Omit the APT start tone (missed start)\n"
-        "      --png <chart.png>         Also write the source test chart\n");
+        "      --png <chart.png>         Also write the source test chart\n"
+        "\n"
+        "  probe <in.wav>                Quick WEFAX presence/quality check (one line, CSV)\n");
+}
+
+int cmd_probe(const Args& args) {
+    if (args.size() != 1) {
+        print_usage();
+        return 2;
+    }
+    const auto audio = owfax::audio::read_wav(args[0]);
+    const auto r = owfax::wefax::probe(audio);
+    std::printf(
+        "score=%.2f rms_dbfs=%.1f clipped=%.4f band=%.2f fm_in_range=%.2f apt_start=%.2f "
+        "apt_stop=%.2f\n",
+        r.score, r.rms_dbfs, r.clipped_fraction, r.band_fraction, r.fm_in_range, r.apt_start_ratio,
+        r.apt_stop_ratio);
+    return 0;
 }
 
 void print_version() {
@@ -187,6 +205,7 @@ int main(int argc, char** argv) {
         }
         if (cmd == "decode") return cmd_decode(args);
         if (cmd == "synth") return cmd_synth(args);
+        if (cmd == "probe") return cmd_probe(args);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "Error: %s\n", e.what());
         return 1;

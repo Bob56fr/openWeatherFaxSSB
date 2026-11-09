@@ -32,6 +32,15 @@
         "power_kw": 20.0,
         "emission": "F1C"
       }
+    ],
+    "observed_shift_hz": [
+      {
+        "date": "2026-11-09",
+        "khz": 3855,
+        "black_hz": 1485,
+        "white_hz": 2319,
+        "note": "tuned for 1900 Hz centre; measured span 834 Hz (nominal 850)"
+      }
     ]
   },
   "sources": [
@@ -280,7 +289,9 @@
     {
       "utc": "21:35",
       "content": "H+72 sea and swell, wind and swell direction",
-      "observed": []
+      "observed": [
+        "2026-11-09 3855 kHz: end of a chart received (recording started 21:45:58), wave/swell values visible"
+      ]
     },
     {
       "utc": "21:47",
@@ -289,17 +300,23 @@
     {
       "utc": "22:00",
       "content": "MSL weather chart N Atlantic, Europe",
-      "observed": []
+      "observed": [
+        "2026-11-09 3855 kHz: received complete, APT start 22:00:01, 'Boden 09 November 2026 18 UTC' surface analysis, 1295 lines"
+      ]
     },
     {
       "utc": "22:20",
       "content": "Ice condition chart western Baltic",
-      "observed": []
+      "observed": [
+        "2026-11-09 3855 kHz: NOT broadcast (idle white carrier 22:11-22:45)"
+      ]
     },
     {
       "utc": "22:40",
       "content": "H+48 N Atlantic wave prediction",
-      "observed": []
+      "observed": [
+        "2026-11-09 3855 kHz: NOT broadcast (idle white carrier 22:11-22:45)"
+      ]
     }
   ],
   "schedule_source": "weatherfax-2024"

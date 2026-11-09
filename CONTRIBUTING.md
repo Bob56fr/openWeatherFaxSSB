@@ -71,6 +71,7 @@ Toute nouvelle dépendance doit être **compatible AGPL-3.0** et justifiée dans
 - **Réception seule** : aucun code ne doit pouvoir déclencher une émission (PTT, TX, tuner) — spec NFR-001, CAT-002.
 - **Intégrité météo** : aucun traitement ne doit pouvoir ajouter une information absente du signal ; l'image brute est toujours conservée — spec DSP-030.
 - **Aucune télémétrie** — spec NFR-005.
+- **Protection des relais du transceiver** : au moins **5 secondes** entre deux changements de fréquence envoyés au TRX, y compris d'un programme à l'autre — spec CAT-009. L'IC-7300 (et d'autres) commute ses filtres de bande par relais mécaniques : des allers-retours rapides peuvent l'endommager. Ce délai est appliqué dans la couche CAT (`rig_safe.sh` aujourd'hui, le module CAT du cœur demain), jamais dans le code appelant ; tout test ou script qui balaie des fréquences sur un vrai TRX doit passer par elle.
 
 ### Tests
 

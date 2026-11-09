@@ -15,9 +15,34 @@ RIG_BAUD=${RIG_BAUD:-115200}
 RIGCTLD_PORT=${RIGCTLD_PORT:-4533}
 RIG_STATE_FILE=${RIG_STATE_FILE:-/tmp/owfax-rig-state.$$}
 
+# HARDWARE PROTECTION (spec CAT-009): the IC-7300 switches its band-pass filters with
+# mechanical relays. Back-and-forth band changes in quick succession can damage them.
+# At least 5 s must separate two frequency changes. The timestamp is shared through a
+# file so the rule also holds across scripts (restore, then the next capture).
+RIG_BAND_GUARD_S=${RIG_BAND_GUARD_S:-6}
+RIG_BAND_STAMP=${RIG_BAND_STAMP:-/tmp/owfax-last-freq-change}
+if awk -v g="$RIG_BAND_GUARD_S" 'BEGIN { exit !(g < 5) }'; then
+  echo "RIG_BAND_GUARD_S=$RIG_BAND_GUARD_S refused: minimum 5 s (relay protection)." >&2
+  RIG_BAND_GUARD_S=5
+fi
+
+rig_band_guard() {
+  local now last wait
+  now=$(date +%s.%N)
+  last=$(cat "$RIG_BAND_STAMP" 2>/dev/null || echo 0)
+  wait=$(awk -v n="$now" -v l="$last" -v g="$RIG_BAND_GUARD_S" \
+    'BEGIN { w = l + g - n; if (w > 0) printf "%.2f", w; else print 0 }')
+  if [[ $wait != 0 ]]; then
+    echo "Band-change guard: waiting ${wait} s (IC-7300 relays)" >&2
+    sleep "$wait"
+  fi
+}
+
+rig_band_mark() { date +%s.%N >"$RIG_BAND_STAMP"; }
+
 # Talks to rigctld with its extended protocol ("+cmd" → header, "Key: value" lines,
 # "RPRT n"). Prints the values, one per line; fails if RPRT != 0. Uses a raw TCP
-# socket (fd 9) rather than the rigctl client, whose NET model differs between
+# socket (fd 9 write, fd 8 read) rather than the rigctl client, whose NET model differs between
 # Hamlib versions.
 rig() {
   case "$1" in
@@ -27,9 +52,13 @@ rig() {
     T) [[ $# -eq 2 && $2 == 0 ]] || { echo "refused: T $*" >&2; return 1; } ;;
     *) echo "refused rig command: $1" >&2; return 1 ;;
   esac
+  if [[ $1 == F ]]; then
+    rig_band_guard
+    rig_band_mark  # stamped before sending: a failed or slow reply still counts
+  fi
   printf '+%s\n' "$*" >&9 || return 1
   local line first=1 rc=1
-  while IFS= read -r -t 5 line <&9; do
+  while IFS= read -r -t 5 line <&8; do
     line=${line%$'\r'}
     if [[ $line =~ ^RPRT\ (-?[0-9]+) ]]; then
       rc=${BASH_REMATCH[1]}
@@ -43,6 +72,7 @@ rig() {
 
 rig_connect() {
   exec 9<>"/dev/tcp/127.0.0.1/$RIGCTLD_PORT"
+  exec 8<&9  # replies are read from fd 8 (same socket)
 }
 
 rig_start() {
@@ -66,11 +96,14 @@ rig_start() {
     rig T 0 || true
     [[ $(rig t 2>/dev/null) == 0 ]] || { echo "Cannot confirm receive state." >&2; rig_stop; return 1; }
   fi
+  # Another application may have changed band just before we took the radio:
+  # count our start as a change so the first F waits the guard delay.
+  [[ -f $RIG_BAND_STAMP ]] || rig_band_mark
   echo "rigctld started (pid $RIGCTLD_PID), radio confirmed in receive."
 }
 
 rig_stop() {
-  exec 9>&- 2>/dev/null || true
+  exec 8<&- 9>&- 2>/dev/null || true
   [[ -n ${RIGCTLD_PID:-} ]] && kill "$RIGCTLD_PID" 2>/dev/null && wait "$RIGCTLD_PID" 2>/dev/null
   RIGCTLD_PID=
 }

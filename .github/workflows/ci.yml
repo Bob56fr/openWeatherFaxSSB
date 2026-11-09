@@ -146,6 +146,16 @@ jobs:
       - name: Build
         run: cmake --build build
 
+  capture-scripts:
+    name: Capture scripts (relay protection, syntax)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: bash -n tools/capture/*.sh tools/capture/tests/*.sh
+      - name: Band-change guard (spec CAT-009)
+        run: bash tools/capture/tests/test_band_guard.sh
+
   format:
     name: clang-format
     runs-on: ubuntu-24.04

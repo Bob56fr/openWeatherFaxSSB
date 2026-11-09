@@ -132,6 +132,7 @@ Le CAT n'est **pas** supporté sur Android.
 - **CAT-005 (DEVRAIT, V2)** — Lecture du S-mètre, journalisée avec chaque réception.
 - **CAT-006 (DEVRAIT, V2)** — Réglages de réception recommandés et applicables : AGC lente, noise blanker selon le QRN, réduction de bruit DSP du TRX désactivée.
 - **CAT-007 (DEVRAIT, V2)** — Si la qualité est mauvaise au début d'une émission, basculement vers une autre fréquence de la même station selon le planning.
+- **CAT-009 (DOIT, toutes versions)** — **Protection des relais du TRX** : deux changements de fréquence envoyés au transceiver sont **toujours séparés d'au moins 5 secondes**, y compris entre deux sessions ou programmes successifs (restauration puis nouvelle capture). Les transceivers comme l'IC-7300 commutent leurs filtres de bande par relais mécaniques, que des allers-retours rapides peuvent endommager. Le délai est imposé dans la couche CAT elle-même (jamais laissé à l'appelant), il n'est pas réglable en dessous de 5 s, et il est couvert par un test automatisé.
 - **CAT-008 (DOIT, V2)** — Pour les configurations sans CAT, l'application affiche la fréquence de cadran à régler manuellement et le mode attendu.
 
 ---

@@ -77,7 +77,8 @@ struct Levels {
 
 /// Black and white frequencies = the two main peaks of the frequency histogram over
 /// phasing + image (both levels are abundant there; peaks are robust to noise).
-Levels estimate_levels(const std::vector<float>& sig, std::size_t from, std::size_t to) {
+Levels estimate_levels(const std::vector<float>& sig, std::size_t from, std::size_t to,
+                       double shift_hz) {
     constexpr double kLo = 1000.0;
     constexpr double kBinHz = 10.0;
     constexpr std::size_t kBins = 180;          // 1000 … 2800 Hz
@@ -114,14 +115,14 @@ Levels estimate_levels(const std::vector<float>& sig, std::size_t from, std::siz
     };
     if (h[p2] < 0.03 * h[p1] || p2 == 0) {
         // Only one clear level (e.g. the white end of a chart, no phasing): deduce the
-        // other one from the nominal 800 Hz shift, if the peak is plausibly black or white.
+        // other one from the station's nominal shift, if the peak is plausibly black or white.
         const double f = refine(p1);
-        if (std::fabs(f - kWhiteHz) < 250.0) {
+        if (std::fabs(f - (kCenterHz + shift_hz / 2.0)) < 250.0) {
             lv.white = f;
-            lv.black = f - (kWhiteHz - kBlackHz);
-        } else if (std::fabs(f - kBlackHz) < 250.0) {
+            lv.black = f - shift_hz;
+        } else if (std::fabs(f - (kCenterHz - shift_hz / 2.0)) < 250.0) {
             lv.black = f;
-            lv.white = f + (kWhiteHz - kBlackHz);
+            lv.white = f + shift_hz;
         }
         return lv;
     }
@@ -358,7 +359,8 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
     const std::size_t signal_end = stop ? stop->begin : sig.size();
 
     // 3. Levels and tuning offset, then frequency → luminance (in place).
-    const Levels lv = estimate_levels(sig, std::min(after_start, signal_end), signal_end);
+    const Levels lv =
+        estimate_levels(sig, std::min(after_start, signal_end), signal_end, opt.shift_hz);
     rep.black_hz = lv.black;
     rep.white_hz = lv.white;
     rep.tuning_offset_hz = (lv.black + lv.white) / 2.0 - kCenterHz;

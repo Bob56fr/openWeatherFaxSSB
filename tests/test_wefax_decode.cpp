@@ -154,3 +154,15 @@ OWFAX_TEST(decode_all_splits_transmissions) {
         OWFAX_CHECK(results[1].report.apt_start_s > 100.0);
     }
 }
+
+OWFAX_TEST(decode_dwd_850hz_shift) {
+    ModulatorOptions mod;
+    mod.shift_hz = 850.0;  // DWD Pinneberg: white +425 Hz, black -425 Hz
+    mod.tuning_offset_hz = -7.0;
+    DecodeOptions dec;
+    dec.shift_hz = 850.0;
+    const Outcome o = run(mod, dec);
+    OWFAX_CHECK_NEAR(o.report.white_hz - o.report.black_hz, 850.0, 10.0);
+    OWFAX_CHECK_NEAR(o.report.tuning_offset_hz, -7.0, 3.0);
+    OWFAX_CHECK(o.correlation > 0.95);
+}

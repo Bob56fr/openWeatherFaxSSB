@@ -144,6 +144,7 @@ owfax::wefax::DecodeOptions take_decode_options(Args& args) {
     if (auto v = take_option(args, "--ioc")) opt.ioc = parse_ioc(*v);
     if (auto v = take_option(args, "--lpm")) opt.lpm = parse_lpm(*v);
     if (auto v = take_option(args, "--ppm")) opt.clock_ppm = std::stod(*v);
+    if (auto v = take_option(args, "--shift")) opt.shift_hz = std::stod(*v);
     return opt;
 }
 
@@ -199,6 +200,7 @@ int cmd_synth(Args args) {
     if (auto v = take_option(args, "--rate")) opt.sample_rate = std::stoi(*v);
     if (auto v = take_option(args, "--ioc")) opt.ioc = parse_ioc(*v);
     if (auto v = take_option(args, "--offset")) opt.tuning_offset_hz = std::stod(*v);
+    if (auto v = take_option(args, "--shift")) opt.shift_hz = std::stod(*v);
     if (auto v = take_option(args, "--ppm")) opt.clock_ppm = std::stod(*v);
     if (auto v = take_option(args, "--snr")) opt.snr_db = std::stod(*v);
     if (take_flag(args, "--no-start")) opt.start_tone_s = 0.0;

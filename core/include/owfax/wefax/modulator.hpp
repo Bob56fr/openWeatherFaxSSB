@@ -25,6 +25,7 @@ struct ModulatorOptions {
     double stop_tone_s = 5.0;      ///< APT stop tone.
     double trailer_s = 5.0;        ///< Black after the stop tone.
     double tuning_offset_hz = 0;   ///< Simulated SSB mistuning.
+    double shift_hz = 800.0;       ///< Black→white shift (DWD: 850 Hz).
     double clock_ppm = 0.0;        ///< Simulated sound card clock error (causes slant).
     std::optional<double> snr_db;  ///< White noise, SNR measured in a 2.5 kHz bandwidth.
     std::uint32_t noise_seed = 1;

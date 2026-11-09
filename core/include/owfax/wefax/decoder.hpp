@@ -20,6 +20,7 @@ struct DecodeOptions {
     Lpm lpm = Lpm::k120;     ///< Lines per minute.
     std::optional<double> clock_ppm;  ///< Forced sound card clock error; estimated otherwise.
     double max_clock_ppm = 1000.0;    ///< Search range for the clock error estimate.
+    double shift_hz = 800.0;          ///< Nominal black→white shift of the station (DWD: 850 Hz).
 };
 
 struct DecodeReport {

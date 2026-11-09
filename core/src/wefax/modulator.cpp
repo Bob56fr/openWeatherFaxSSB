@@ -68,7 +68,7 @@ audio::AudioBuffer modulate(const GrayImage& image, const ModulatorOptions& o) {
         } else if (t < t_trailer) {
             lum = square(t - t_stop, kAptStopHz);
         }
-        const double f = kBlackHz + lum * (kWhiteHz - kBlackHz) + o.tuning_offset_hz;
+        const double f = kCenterHz + (lum - 0.5) * o.shift_hz + o.tuning_offset_hz;
         phase += dsp::kTwoPi * f * dt;
         if (phase >= dsp::kTwoPi) phase -= dsp::kTwoPi;
         double s = kAmplitude * std::sin(phase);

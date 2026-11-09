@@ -105,13 +105,26 @@ Levels estimate_levels(const std::vector<float>& sig, std::size_t from, std::siz
     const std::size_t p2 =
         argmax([&](std::size_t b) { return (b > p1 ? b - p1 : p1 - b) >= kMinSeparation; });
     Levels lv;
-    if (h[p1] <= 0.0 || h[p2] < 0.03 * h[p1] || p1 == 0 || p2 == 0) return lv;
+    if (h[p1] <= 0.0 || p1 == 0) return lv;
 
     auto refine = [&](std::size_t b) {
         const double den = h[b - 1] - 2.0 * h[b] + h[b + 1];
         const double delta = den != 0.0 ? 0.5 * (h[b - 1] - h[b + 1]) / den : 0.0;
         return kLo + (to_d(b) + 0.5 + std::clamp(delta, -0.5, 0.5)) * kBinHz;
     };
+    if (h[p2] < 0.03 * h[p1] || p2 == 0) {
+        // Only one clear level (e.g. the white end of a chart, no phasing): deduce the
+        // other one from the nominal 800 Hz shift, if the peak is plausibly black or white.
+        const double f = refine(p1);
+        if (std::fabs(f - kWhiteHz) < 250.0) {
+            lv.white = f;
+            lv.black = f - (kWhiteHz - kBlackHz);
+        } else if (std::fabs(f - kBlackHz) < 250.0) {
+            lv.black = f;
+            lv.white = f + (kWhiteHz - kBlackHz);
+        }
+        return lv;
+    }
     const double a = refine(p1);
     const double b = refine(p2);
     const double black = std::min(a, b);

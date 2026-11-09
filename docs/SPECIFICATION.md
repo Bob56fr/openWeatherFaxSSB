@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 — 2026-11-09 |
+| **Version** | 1.1 — 2026-11-09 (Debian 12 comme plancher Linux, phase de développement en solo) |
 | **Statut** | Validée pour démarrage du développement |
 | **Licence du projet** | AGPL-3.0-or-later |
 | **Dépôt** | GitHub (public) |
@@ -42,7 +42,8 @@ openWeatherFaxSSB est un logiciel libre et multiplateforme qui :
 | Android smartphone / tablette | 5.0 (API 21) | armeabi-v7a, arm64-v8a, x86_64 | Supporté |
 | Windows | 10 / 11 | x64, x86 | Supporté |
 | Windows | 7 / 8.1 | x64, x86 | Best effort |
-| Linux Debian / Raspberry Pi OS | Debian 11 (bullseye) | amd64, arm64, armhf | Supporté |
+| Linux Debian / Raspberry Pi OS | Debian 12 (bookworm) | amd64, arm64, armhf | Supporté |
+| Linux Debian / Raspberry Pi OS Legacy | Debian 11 (bullseye, fin de vie) | amd64, arm64, armhf | Best effort |
 | Raspberry Pi (station) | Pi 3B / Zero 2 W | arm64, armhf | Supporté |
 
 ### 2.2 Niveaux de matériel
@@ -365,6 +366,7 @@ Le Pi n'a pas d'horloge RTC. Or toute la planification est en UTC.
 ## 15. Licence et gouvernance
 
 - **LIC-001** — Licence **AGPL-3.0-or-later** pour tout le code du projet. Le catalogue des stations est publié sous une licence de données ouverte (ODbL ou CC-BY-SA 4.0, à fixer à la création du dépôt catalogue).
+- **LIC-005** — **Phase actuelle : développement par un mainteneur unique.** Les pull requests externes ne sont pas acceptées pour l'instant. Les issues (retours d'usage, enregistrements WAV, horaires de stations) restent bienvenues. LIC-002 s'appliquera à l'ouverture aux contributions ; d'ici là, les commits du mainteneur sont tout de même signés pour garder un historique conforme.
 - **LIC-002** — Contributions sous **DCO** (Developer Certificate of Origin) : chaque commit porte une ligne `Signed-off-by`, ajoutée par `git commit -s`. Le contributeur garde ses droits d'auteur et certifie avoir le droit de contribuer sous la licence du projet. Pas de CLA. Un changement ultérieur de licence nécessiterait l'accord de tous les contributeurs.
 - **LIC-003** — Toute dépendance ajoutée doit être compatible AGPL-3.0. La liste des dépendances et de leurs licences est maintenue dans le dépôt.
 - **LIC-004** — Distribution :

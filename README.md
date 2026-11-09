@@ -29,7 +29,7 @@ Le logiciel est **strictement en réception** : il n'émet jamais, y compris qua
 |---|---|
 | Android (smartphone, tablette) | 5.0 |
 | Windows | 10 / 11 (7 et 8.1 en best effort) |
-| Linux | Debian 11, Raspberry Pi OS |
+| Linux | Debian 12, Raspberry Pi OS (Debian 11 en best effort) |
 | Raspberry Pi (station autonome) | Pi 3B, Pi Zero 2 W |
 | iOS, macOS | via l'interface web d'une station |
 
@@ -70,7 +70,7 @@ docs/        Spécification et documentation
 
 ## Contribuer
 
-Les contributions sont bienvenues, en français ou en anglais : code, traductions, enregistrements WAV de réceptions réelles pour le corpus de tests, mise à jour des horaires de stations. Lire [CONTRIBUTING.md](CONTRIBUTING.md). Chaque commit doit être signé (`git commit -s`, voir [DCO](DCO)).
+Le projet est **développé en solo pour le moment** : les pull requests ne sont pas acceptées. Les **issues sont bienvenues**, en français ou en anglais : retours d'usage, enregistrements WAV de réceptions réelles, horaires de stations à corriger. Voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
@@ -87,4 +87,5 @@ openWeatherFaxSSB is a free (AGPL-3.0-or-later), **receive-only** decoder for HF
 - Works on old, recycled hardware so anyone can try it at no cost: Android 5+, Windows 10/11 (7 best effort), Debian, Raspberry Pi.
 - Audio input from the SSB receiver (line, headset, USB, Bluetooth, or the phone's microphone), SDRs, or Hamlib-controlled transceivers.
 - Runs in the background; a Raspberry Pi acts as its own Wi-Fi access point and serves a web UI to any device on board, including iOS.
-- The specification ([docs/SPECIFICATION.md](docs/SPECIFICATION.md)) is written in French. Issues and pull requests are welcome in English or French.
+- The specification ([docs/SPECIFICATION.md](docs/SPECIFICATION.md)) is written in French.
+- Currently developed by a single maintainer: pull requests are not accepted yet, but issues (feedback, WAV recordings, schedule fixes) are welcome in English or French.

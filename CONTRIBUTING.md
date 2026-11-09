@@ -3,6 +3,10 @@
 Merci de votre intérêt ! Les issues, discussions et pull requests sont bienvenues **en français ou en anglais**.
 *Contributions are welcome in French or English. The rules below are summarised in English at the end.*
 
+> **Phase actuelle : développement en solo.** Les pull requests externes ne sont pas acceptées pour le moment et seront fermées. Les **issues sont bienvenues** : retours d'usage, enregistrements WAV, horaires de stations. Les règles ci-dessous s'appliqueront quand le projet s'ouvrira aux contributions.
+>
+> *Currently a single-maintainer project: external pull requests are not accepted yet. Issues are welcome.*
+
 ## Ce qui aide le plus
 
 - **Enregistrements WAV de réceptions réelles** (bonnes et mauvaises), pour le corpus de tests de non-régression (spec TST-001). Indiquez la station, la fréquence, la date et l'heure UTC, le récepteur et la source audio.
@@ -46,7 +50,7 @@ Le nom et l'adresse doivent être réels ou correspondre à votre identité habi
 
 ### Code C++ (cœur)
 
-- C++17 strict, sans extension compilateur. Le code doit compiler pour **toutes** les cibles de la CI : Linux amd64, arm64 et armhf ; Windows x64 et x86 ; Android API 21 ; Debian 11 avec CMake 3.18.
+- C++17 strict, sans extension compilateur. Le code doit compiler pour **toutes** les cibles de la CI : Linux amd64, arm64 et armhf ; Windows x64 et x86 ; Android API 21 ; Debian 12 ; Debian 11 avec CMake 3.18 (best effort).
 - **Windows 7** : aucune API Windows postérieure à Windows 7 (`_WIN32_WINNT=0x0601` est imposé).
 - **Vieux matériel** : pensez au Pi Zero 2 W (512 Mo, Cortex-A53) et aux téléphones Android 5. Toute fonction gourmande doit être désactivable selon le niveau de matériel (spec §2.2).
 - Aucun avertissement : la CI compile avec `-Werror` ou `/WX`.

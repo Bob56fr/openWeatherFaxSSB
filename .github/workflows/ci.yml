@@ -62,14 +62,24 @@ jobs:
       - name: Test (qemu-arm)
         run: ctest --test-dir build --output-on-failure
 
-  debian-oldest:
-    name: Debian 11 (oldest supported CMake 3.18)
+  debian:
+    name: ${{ matrix.label }}
     runs-on: ubuntu-24.04
-    container: debian:bullseye
+    container: debian:${{ matrix.suite }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suite: bookworm, archived: false, label: "Debian 12 (supported floor)" }
+          - { suite: bullseye, archived: true,  label: "Debian 11 (best effort, CMake 3.18)" }
     steps:
+      - name: Refresh apt
+        if: ${{ !matrix.archived }}
+        run: apt-get update -q
       # Bullseye is end-of-life: packages now live on archive.debian.org. All three
       # suites are needed so that versions match those already in the image.
       - name: Point apt to the Debian archive
+        if: ${{ matrix.archived }}
         run: |
           rm -f /etc/apt/sources.list.d/*
           cat > /etc/apt/sources.list <<'LIST'

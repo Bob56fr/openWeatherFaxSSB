@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 openWeatherFaxSSB contributors
 
-# 3.18 = CMake shipped by Debian 11 (bullseye), our Linux floor (spec §2.1).
+# 3.18 = CMake shipped by Debian 11 (bullseye), kept as best-effort floor for
+# Raspberry Pi OS Legacy. Supported floor is Debian 12 (spec §2.1).
 cmake_minimum_required(VERSION 3.18)
 
 project(openWeatherFaxSSB

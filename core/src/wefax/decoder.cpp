@@ -51,22 +51,31 @@ float clamp01(float v) {
     return v < 0.0F ? 0.0F : (v > 1.0F ? 1.0F : v);
 }
 
+/// First run of `tone_hz` holding at least `min_blocks` detected 0.25 s blocks.
+/// A single missed block inside the run is tolerated: on real HF signals (GYA,
+/// 2026-11-09) QRM chops the APT tone into ~1 s pieces separated by 0.25 s gaps.
 std::optional<Run> find_tone_run(const std::vector<float>& sig, double rate, double tone_hz,
                                  std::size_t from, std::size_t min_blocks) {
+    constexpr std::size_t kMaxGapBlocks = 1;
     const auto block = static_cast<std::size_t>(rate * kToneBlockS);
     if (block == 0) return std::nullopt;
     std::size_t run_start = 0;
-    std::size_t run_len = 0;
+    std::size_t run_end = 0;  // end of the last detected block
+    std::size_t hits = 0;
+    std::size_t gap = 0;
     for (std::size_t pos = from; pos + block <= sig.size(); pos += block) {
         if (dsp::tone_ratio(&sig[pos], block, tone_hz, rate) > kToneThreshold) {
-            if (run_len == 0) run_start = pos;
-            ++run_len;
-        } else {
-            if (run_len >= min_blocks) return Run{run_start, pos};
-            run_len = 0;
+            if (hits == 0) run_start = pos;
+            ++hits;
+            gap = 0;
+            run_end = pos + block;
+        } else if (hits > 0 && ++gap > kMaxGapBlocks) {
+            if (hits >= min_blocks) return Run{run_start, run_end};
+            hits = 0;
+            gap = 0;
         }
     }
-    if (run_len >= min_blocks) return Run{run_start, run_start + run_len * block};
+    if (hits >= min_blocks) return Run{run_start, run_end};
     return std::nullopt;
 }
 

@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <random>
 
 #include "owfax/wefax/decoder.hpp"
 #include "owfax/wefax/modulator.hpp"
@@ -165,4 +166,28 @@ OWFAX_TEST(decode_dwd_850hz_shift) {
     OWFAX_CHECK_NEAR(o.report.white_hz - o.report.black_hz, 850.0, 10.0);
     OWFAX_CHECK_NEAR(o.report.tuning_offset_hz, -7.0, 3.0);
     OWFAX_CHECK(o.correlation > 0.95);
+}
+
+OWFAX_TEST(decode_all_finds_apt_chopped_by_qrm) {
+    // Real case (GYA 2026-11-09 23:12 UTC): the 300 Hz start tone arrives in ~1 s
+    // pieces separated by 0.25 s of interference. Both transmissions must be found.
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.start_tone_s = 4.5;
+    auto first = modulate(make_test_chart(mod.ioc, 100), mod);
+    auto second = modulate(make_test_chart(mod.ioc, 100), mod);
+    std::mt19937 rng(7);
+    std::normal_distribution<float> noise(0.0F, 0.5F);
+    const std::size_t rate = 8000;
+    for (std::size_t t0 = rate; t0 + rate / 4 < static_cast<std::size_t>(4.5 * 8000);
+         t0 += rate + rate / 4) {
+        for (std::size_t i = t0; i < t0 + rate / 4; ++i) second.samples[i] = noise(rng);
+    }
+    first.samples.insert(first.samples.end(), second.samples.begin(), second.samples.end());
+    const auto results = decode_all(first);
+    OWFAX_CHECK(results.size() == 2);
+    if (results.size() == 2) {
+        OWFAX_CHECK(results[1].report.apt_start_found);
+        OWFAX_CHECK(results[1].image.height >= 98 && results[1].image.height <= 101);
+    }
 }

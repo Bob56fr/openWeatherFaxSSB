@@ -92,5 +92,10 @@
   "diag.journal": "Télécharger le journal",
   "tier.discovery": "découverte",
   "tier.standard": "standard",
-  "tier.advanced": "avancé"
+  "tier.advanced": "avancé",
+  "phase.waiting": "en attente d'une carte",
+  "phase.phasing": "début de carte, synchronisation (phasage)…",
+  "phase.signal": "signal fax détecté sans APT, synchronisation…",
+  "phase.image": "décodage de la carte, {lines} lignes",
+  "phase.done": "Carte reçue · {label}"
 }

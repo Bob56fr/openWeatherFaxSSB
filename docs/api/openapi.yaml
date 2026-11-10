@@ -212,6 +212,12 @@ components:
         updated_utc: { type: string, example: "2026-11-10 20:10:00Z" }
         input: { type: string }
         state: { type: string, enum: [starting, listening, receiving, stopped] }
+        phase:
+          type: string
+          enum: [listening, phasing, image]
+          description: "Step of the reception: waiting, chart started (phasing), decoding"
+        start: { type: string, enum: ["", apt, signal, forced] }
+        lines: { type: integer, description: "Live lines of the chart being received" }
         current: { type: string, description: "Stem of the chart being received, or empty" }
         audio_s: { type: number }
         queued_samples: { type: integer }

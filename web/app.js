@@ -159,12 +159,38 @@
 
   // ------------------------------------------------------------------ status
 
+  /** "20261110T2343Z_GYA_rejeu" → "GYA rejeu" */
+  function stemLabel(stem) {
+    return String(stem || '').split('_').slice(1).join(' ');
+  }
+
+  /**
+   * Header badge: engine state and, during a reception, its step (waiting for the
+   * phasing, decoding with the line count). Blinks while a chart is being received.
+   */
   function renderBadge() {
     const b = $('state');
     const s = state.status;
     const st = s ? s.state : 'offline';
-    b.className = 'badge ' + st;
-    b.textContent = t('state.' + st) + (st === 'receiving' && s.current ? ' · ' + s.current : '');
+    let text = t('state.' + st);
+    let cls = st;
+    if (state.done && Date.now() < state.done.until) {
+      cls = 'done';
+      text = t('phase.done', { label: stemLabel(state.done.stem) });
+    } else if (st === 'listening') {
+      text += ' · ' + t('phase.waiting');
+    } else if (st === 'receiving') {
+      const phase = s.phase || 'image';
+      const label = stemLabel(s.current);
+      if (phase === 'phasing') {
+        text += ' · ' + label + ' · ' + t(s.start === 'signal' ? 'phase.signal' : 'phase.phasing');
+      } else {
+        text += ' · ' + label + ' · ' + t('phase.image', { lines: Math.max(s.lines || 0, state.live.rows) });
+      }
+      cls += ' blink';
+    }
+    b.className = 'badge ' + cls;
+    b.textContent = text;
   }
 
   // ------------------------------------------------------ live view (DSP-007)
@@ -245,6 +271,7 @@
     state.live.rows = Math.max(state.live.rows, m.index + 1);
     if (m.index % 10 === 0) fitLiveHeight();
     if (m.index % 20 === 0) renderLiveInfo();
+    if (m.index % 10 === 0) renderBadge();
   }
 
   function renderLiveInfo(extra) {
@@ -256,7 +283,7 @@
     liveCanvas().parentNode.hidden = !receiving;
     if (receiving) {
       const stamp = s.current.split('_')[0];
-      let text = t('live.receiving', { label: s.current.split('_').slice(1).join(' '), when: when(stamp), lines: state.live.rows });
+      let text = t('live.receiving', { label: s.current.split('_').slice(1).join(' '), when: when(stamp), lines: Math.max(s.lines || 0, state.live.rows) });
       if (state.live.locked) text += ' — ' + state.live.locked;
       if (extra) text += ' — ' + extra;
       $('live-info').textContent = text;
@@ -296,18 +323,36 @@
     } else if (m.type === 'start') {
       resetLive(m.stem, m.ioc);
       state.live.locked = t('start.' + m.start);
-      if (state.status) { state.status.state = 'receiving'; state.status.current = m.stem; }
+      state.done = null;
+      if (state.status) {
+        state.status.state = 'receiving';
+        state.status.current = m.stem;
+        state.status.phase = 'phasing';
+        state.status.start = m.start;
+        state.status.lines = 0;
+      }
       renderBadge();
       renderLiveInfo();
       toast(t('toast.new_start', { label: m.stem }));
     } else if (m.type === 'lock') {
       state.live.locked = t('live.locked', { ppm: signed(m.clock_ppm, 1), hz: signed(m.tuning_offset_hz, 0) }) +
         ', ' + t(m.phasing_found ? 'live.phasing' : 'live.no_phasing');
+      if (state.status) state.status.phase = 'image';
+      renderBadge();
       renderLiveInfo();
     } else if (m.type === 'line') {
       drawLine(m);
     } else if (m.type === 'complete') {
-      if (state.status) { state.status.state = 'listening'; state.status.current = ''; }
+      if (state.status) {
+        state.status.state = 'listening';
+        state.status.current = '';
+        state.status.phase = 'listening';
+      }
+      if (!m.discarded) {
+        // "Chart received" for a few seconds, then back to "listening".
+        state.done = { stem: m.stem, until: Date.now() + 15000 };
+        setTimeout(renderBadge, 15100);
+      }
       renderBadge();
       renderLiveInfo();
       renderLastChart();

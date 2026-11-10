@@ -123,6 +123,19 @@ a { color: var(--accent); }
 }
 
 .badge.receiving { color: var(--live); border-color: var(--live); font-weight: 600; }
+.badge.done { color: var(--accent-text); background: var(--ok); border-color: var(--ok); font-weight: 600; }
+
+/* Draws the eye while a chart is being received; off when the system asks for less motion. */
+.badge.blink { animation: owfax-blink 1.2s ease-in-out infinite; }
+
+@keyframes owfax-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge.blink { animation: none; }
+}
 .badge.listening { color: var(--ok); border-color: var(--ok); }
 
 main {

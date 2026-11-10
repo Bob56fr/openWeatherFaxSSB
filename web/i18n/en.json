@@ -92,5 +92,10 @@
   "diag.journal": "Download the journal",
   "tier.discovery": "discovery",
   "tier.standard": "standard",
-  "tier.advanced": "advanced"
+  "tier.advanced": "advanced",
+  "phase.waiting": "waiting for a chart",
+  "phase.phasing": "chart starting, synchronising (phasing)…",
+  "phase.signal": "fax signal found without APT, synchronising…",
+  "phase.image": "decoding the chart, {lines} lines",
+  "phase.done": "Chart received · {label}"
 }

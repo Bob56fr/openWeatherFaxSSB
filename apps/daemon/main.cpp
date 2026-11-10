@@ -315,12 +315,24 @@ std::string fmt(const char* format, double v) {
     return buf;
 }
 
+/// Where the chart being received stands, for the screens (badge of the web interface).
+struct Phase {
+    std::string name = "listening";  ///< listening, phasing (start seen), image (decoding)
+    std::string start;               ///< apt, signal or forced
+    std::size_t lines = 0;           ///< live lines so far
+};
+
 /// Engine state: written to status.json and served at /api/v1/status.
 std::string status_json(const std::string& input, const std::string& state, const std::string& stem,
                         double audio_s, std::size_t queued, std::size_t overruns,
-                        std::size_t dropped, std::size_t charts, std::size_t live_clients) {
+                        std::size_t dropped, std::size_t charts, std::size_t live_clients,
+                        const Phase& phase) {
     using owfax::engine::json_escape;
     return "{\n"
+           "  \"phase\": \"" +
+           phase.name + "\",\n  \"start\": \"" + phase.start +
+           "\",\n  \"lines\": " + std::to_string(phase.lines) +
+           ",\n"
            "  \"updated_utc\": \"" +
            utc_text(now_unix()) +
            "\",\n"
@@ -486,8 +498,20 @@ int run(const Options& o) {
         journal("http: API and web interface on port " + std::to_string(server->port()) + " (" +
                 o.http_bind + "), local network clients only");
     }
+    Phase phase;
     rx.on_event = [&](const owfax::wefax::StreamEvent& e, const std::string& stem) {
-        if (e.kind != owfax::wefax::StreamEvent::Kind::kLine) status_dirty = true;
+        using Kind = owfax::wefax::StreamEvent::Kind;
+        switch (e.kind) {
+            case Kind::kStart:
+                phase.name = "phasing";
+                phase.start = e.apt_start ? "apt" : e.signal_start ? "signal" : "forced";
+                phase.lines = 0;
+                break;
+            case Kind::kLocked: phase.name = "image"; break;
+            case Kind::kLine: phase.lines = e.line_index + 1; break;
+            case Kind::kComplete: phase = Phase{}; break;
+        }
+        if (e.kind != Kind::kLine) status_dirty = true;
         if (api) api->publish(event_json(e, stem));
     };
     if (o.force_start) rx.force_start();
@@ -520,9 +544,9 @@ int run(const Options& o) {
     std::size_t processed = 0;
     std::size_t charts = 0;
     auto update_status = [&](const std::string& state, const std::string& stem) {
-        const std::string json =
-            status_json(input, state, stem, static_cast<double>(processed) / rate, queue.size(),
-                        source->overruns(), dropped.load(), charts, api ? api->live_clients() : 0);
+        const std::string json = status_json(
+            input, state, stem, static_cast<double>(processed) / rate, queue.size(),
+            source->overruns(), dropped.load(), charts, api ? api->live_clients() : 0, phase);
         write_status(o.rx.output_dir, json);
         if (api) {
             api->set_status(json);

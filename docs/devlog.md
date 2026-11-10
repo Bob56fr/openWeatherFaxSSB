@@ -217,3 +217,9 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   rejouée : blanc à 2325 Hz pile sur son repère, niveau −13 dBFS « correct ».
 - `owfaxd` refuse de démarrer si `--web` ne contient pas d'index.html (cas vu le
   10 novembre : dépôt du minix pas encore à jour, page « not found »).
+- Badge d'état (demande du 11 novembre) : il clignote pendant une réception et donne
+  l'étape, suivie par owfaxd dans l'état (`phase`, `start`, `lines`) pour qu'un écran
+  ouvert en cours de carte la connaisse : « en attente d'une carte », « début de
+  carte, synchronisation (phasage) » ou « signal fax détecté sans APT », « décodage de
+  la carte, N lignes », puis « Carte reçue » en vert pendant 15 s. Pas de clignotement
+  si le système demande moins d'animations.

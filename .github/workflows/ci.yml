@@ -146,6 +146,28 @@ jobs:
       - name: Build
         run: cmake --build build
 
+  corpus:
+    name: Real receptions (corpus regression, TST-002)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Cache corpus
+        uses: actions/cache@v4
+        with:
+          path: tests/corpus/data
+          key: corpus-${{ hashFiles('tests/corpus/corpus.tsv') }}
+      - name: Fetch corpus (SHA-256 checked)
+        run: bash tools/corpus/fetch.sh
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja $OWFAX_COMMON_FLAGS
+          cmake --build build
+      - name: Decode every real reception, compare with its baseline
+        run: OWFAX_CORPUS_DIR=tests/corpus/data ./build/tests/owfax_tests
+
   capture-scripts:
     name: Capture scripts (relay protection, syntax)
     runs-on: ubuntu-24.04

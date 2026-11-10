@@ -119,3 +119,27 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
 - Rien après 22:00 : cohérent avec la porteuse blanche vue le 9 de 22:11 à 22:45.
 - 11:23 et 13:08 : aucun démarrage détecté alors qu'owfaxd écoutait (non émis ou APT
   manqué, non tranché). La même carte figure deux fois au planning (11:23 et 11:35).
+
+### Démarrage sans APT (DSP-006), sur le corpus uniquement
+
+- Détecteur : toutes les secondes, les 10 dernières secondes de signal sont notées
+  (dispersion de la luminance, corrélation d'une ligne à la suivante, corrélation à
+  une demi-ligne en référence). Seuils fixés sur 7 h de captures (DWD 3855 / 7880 /
+  13882,5 kHz, GYA 4610 kHz) : dans les cartes, dispersion ≥ 0,15 et corrélation
+  0,55 – 0,95 ; bruit GYA entre cartes, dispersion ≈ 0,25 mais corrélation ≤ 0,2 ;
+  porteuse DWD au repos, dispersion ≈ 0. Les tons APT corrèlent aussi (0,97) : la
+  fenêtre n'en contient jamais. Départ après 5 notes positives de suite.
+- Fin sans ton de fin : 60 s de bruit. Un seuil à 30 s coupait en deux une vraie
+  carte du corpus (GYA 23:24, évanouissement de 20 à 30 s selon l'enregistrement) :
+  une durée seule ne sépare pas un évanouissement du trou de 41 s entre deux cartes
+  dont les tons sont perdus (GYA 07:35). Après un trou ≥ 15 s, une nouvelle carte est
+  donc reconnue à son phasing.
+- Fragments démarrés sans APT et plus courts qu'une minute : rejetés (fin bruitée
+  d'une carte au début de la capture GYA 07:21).
+- Résultats : corpus de référence en flux 7 cartes sur 7 (5 avant), toutes égales à
+  leur référence ; captures de 7 h, 22 cartes (17 avant), aucun faux départ
+  (16 min de bruit DDH3 après 22:46, pauses DWD). Cartes ajoutées : fin de carte DDH3
+  21:45, GYA 23:03, GYA 07:23 et 07:35 (collées avant), GYA 08:11 (30 min dont 20 de
+  bruit avant, 11 min maintenant). Les cartes démarrées sur APT sont inchangées.
+- Limite : une carte démarrée en cours d'image, sans phasing, garde un décalage
+  horizontal (comme le décodage hors ligne). À valider en direct sur GYA 4610 kHz.

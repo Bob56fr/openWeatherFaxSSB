@@ -167,10 +167,16 @@ struct Receiver::Impl {
         }
         current.ioc = e.ioc;
         current.apt_start = e.apt_start;
+        current.signal_start = e.signal_start;
         live = GrayImage{};
         flushed_lines = 0;
-        say("start " + current.stem + " (IOC " + std::to_string(static_cast<int>(e.ioc)) +
-            (e.apt_start ? ", APT tone)" : ", forced)"));
+        say("start " + current.stem + " (IOC " + std::to_string(static_cast<int>(e.ioc)) + ", " +
+            start_reason() + ")");
+    }
+
+    const char* start_reason() const {
+        if (current.apt_start) return "APT tone";
+        return current.signal_start ? "fax signal, no APT" : "forced";
     }
 
     void on_locked(const StreamEvent& e) {
@@ -193,6 +199,15 @@ struct Receiver::Impl {
     void on_complete(const StreamEvent& e) {
         current.end_s = e.time_s;
         current.live_lines = live.height;
+        if (e.discarded) {
+            std::error_code ec;
+            fs::remove(dir / file("_live.png"), ec);
+            say("discard " + current.stem + ": " + std::to_string(live.height) +
+                " lines, a fragment without APT, not a chart");
+            active = false;
+            live = GrayImage{};
+            return;
+        }
         if (live.height > 0) {
             flush_live();
             current.files.push_back(file("_live.png"));
@@ -237,6 +252,11 @@ struct Receiver::Impl {
                 << "  \"duration_s\": " << fmt("%.1f", current.end_s - current.start_s) << ",\n"
                 << "  \"ioc\": " << static_cast<int>(current.ioc) << ",\n"
                 << "  \"apt_start\": " << (current.apt_start ? "true" : "false") << ",\n"
+                << "  \"start\": \""
+                << (current.apt_start      ? "apt"
+                    : current.signal_start ? "signal"
+                                           : "forced")
+                << "\",\n"
                 << "  \"phasing_found\": " << (current.phasing_found ? "true" : "false") << ",\n"
                 << "  \"live_lines\": " << current.live_lines << ",\n"
                 << "  \"lines\": " << current.lines << ",\n"

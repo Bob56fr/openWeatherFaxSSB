@@ -71,6 +71,8 @@ owfaxd --input wav:capture.wav --out cartes          # rejouer un enregistrement
 arecord -t raw -f S16_LE -c1 -r 48000 | owfaxd --input stdin --rate 48000 --out cartes
 ```
 
+Une carte démarre sur le ton APT, ou, s'il a été manqué ou haché par le QRM, sur le signal fax lui-même (des lignes qui se répètent d'une ligne à l'autre, ce que ne font ni le bruit ni la porteuse). Elle se termine sur le ton de fin, ou après 60 s de bruit si ce ton est perdu ; deux cartes dont les tons ont tous été perdus sont séparées par leur phasing. Le champ `start` du JSON indique `apt`, `signal` ou `forced`. `--no-auto-start` revient au démarrage sur APT seul.
+
 Avec CMake ≥ 3.21, des presets sont disponibles : `cmake --preset dev`, `msvc-x64`, `msvc-x86`, `linux-armhf`, `android-arm64`, `android-armv7` (voir [CMakePresets.json](CMakePresets.json)).
 
 ## Structure du dépôt

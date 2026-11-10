@@ -39,7 +39,8 @@ struct ChartInfo {
     double start_s = 0.0;        ///< Stream time of the start.
     double end_s = 0.0;          ///< Stream time of the end.
     wefax::Ioc ioc = wefax::Ioc::k576;
-    bool apt_start = false;           ///< Started on a detected APT tone (else forced).
+    bool apt_start = false;           ///< Started on a detected APT tone.
+    bool signal_start = false;        ///< Started on a WEFAX signal without APT (DSP-006).
     bool phasing_found = false;       ///< Phasing pulses locked the line origin.
     std::size_t live_lines = 0;       ///< Lines shown in the live preview.
     std::size_t lines = 0;            ///< Lines of the final image (0 = no final image).

@@ -28,6 +28,9 @@ struct DecodeOptions {
     /// mostly out of range are interpolated vertically. No visible gain yet on the real
     /// corpus (2026-11-10): the stripes are mostly in-range FM noise. Off by default.
     bool repair_lines = false;
+    /// Streaming decoder only: start a transmission on a WEFAX signal (lines repeating
+    /// from one to the next) when its APT start tone was missed or chopped (DSP-006).
+    bool start_without_apt = true;
 };
 
 struct DecodeReport {

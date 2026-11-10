@@ -19,6 +19,8 @@ struct Collected {
     int starts = 0;
     int locks = 0;
     int completes = 0;
+    int signal_starts = 0;
+    int discarded = 0;
     double locked_ppm = 0.0;
     std::vector<owfax::GrayImage> live;  // one per transmission
     std::vector<std::shared_ptr<const DecodeResult>> finals;
@@ -34,6 +36,7 @@ void feed(StreamDecoder& dec, const owfax::audio::AudioBuffer& audio, Collected&
             switch (e.kind) {
                 case StreamEvent::Kind::kStart:
                     ++c.starts;
+                    if (e.signal_start) ++c.signal_starts;
                     c.live.emplace_back();
                     break;
                 case StreamEvent::Kind::kLocked:
@@ -49,6 +52,7 @@ void feed(StreamDecoder& dec, const owfax::audio::AudioBuffer& audio, Collected&
                 }
                 case StreamEvent::Kind::kComplete:
                     ++c.completes;
+                    if (e.discarded) ++c.discarded;
                     c.finals.push_back(e.final);
                     break;
             }
@@ -60,6 +64,33 @@ void feed(StreamDecoder& dec, const owfax::audio::AudioBuffer& audio, Collected&
         pos += n;
         drain();
     }
+}
+
+/// Band-limited-ish receiver noise (what an SSB receiver gives between charts).
+std::vector<float> noise(int rate, double seconds, std::uint32_t seed) {
+    std::mt19937 rng(seed);
+    std::normal_distribution<float> n(0.0F, 0.25F);
+    std::vector<float> out(static_cast<std::size_t>(rate * seconds));
+    float lp = 0.0F;
+    for (auto& v : out) {
+        lp = 0.6F * lp + 0.4F * n(rng);
+        v = lp;
+    }
+    return out;
+}
+
+/// Steady tone (an idle carrier, white or black).
+std::vector<float> carrier(int rate, double seconds, double hz) {
+    std::vector<float> out(static_cast<std::size_t>(rate * seconds));
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        out[i] = 0.5F * static_cast<float>(
+                            std::sin(2.0 * 3.14159265358979 * hz * static_cast<double>(i) / rate));
+    }
+    return out;
+}
+
+void append(owfax::audio::AudioBuffer& a, const std::vector<float>& s) {
+    a.samples.insert(a.samples.end(), s.begin(), s.end());
 }
 
 double correlation(const owfax::GrayImage& a, const owfax::GrayImage& b) {
@@ -157,5 +188,147 @@ OWFAX_TEST(stream_forced_start_without_apt) {
         std::printf("    forced start: %zu live lines, corr %.3f\n", c.live[0].height,
                     correlation(chart, c.live[0]));
         OWFAX_CHECK(correlation(chart, c.live[0]) > 0.9);
+    }
+}
+
+OWFAX_TEST(stream_starts_on_fax_signal_when_apt_is_missed) {
+    // Real cases: GYA 4610 kHz, start tones chopped by QRM; capture started mid-chart.
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.start_tone_s = 0.0;
+    mod.clock_ppm = -40.0;
+    const auto chart = make_test_chart(mod.ioc, 200);
+    owfax::audio::AudioBuffer audio;
+    audio.sample_rate = mod.sample_rate;
+    append(audio, noise(mod.sample_rate, 30.0, 7));
+    append(audio, modulate(chart, mod).samples);
+    StreamDecoder dec(mod.sample_rate);
+    Collected c;
+    feed(dec, audio, c, 4);
+    OWFAX_CHECK(c.starts == 1);
+    OWFAX_CHECK(c.signal_starts == 1);
+    OWFAX_CHECK(c.completes == 1);
+    OWFAX_CHECK(c.discarded == 0);
+    if (c.finals.size() == 1 && c.finals[0]) {
+        const auto& r = c.finals[0]->report;
+        const double corr = correlation(chart, c.finals[0]->image);
+        std::printf("    signal start: %zu lines, phasing %d, %.1f ppm, corr %.3f\n",
+                    c.finals[0]->image.height, r.phasing_found ? 1 : 0, r.clock_ppm, corr);
+        OWFAX_CHECK(r.phasing_found);  // started early enough to catch the phasing
+        OWFAX_CHECK(corr > 0.95);
+    } else {
+        OWFAX_CHECK(false);
+    }
+}
+
+OWFAX_TEST(stream_does_not_start_on_noise_or_carrier) {
+    const int rate = 8000;
+    owfax::audio::AudioBuffer audio;
+    audio.sample_rate = rate;
+    append(audio, noise(rate, 120.0, 8));
+    append(audio, carrier(rate, 60.0, kWhiteHz));  // DWD keeps a white carrier between charts
+    append(audio, carrier(rate, 60.0, kBlackHz));
+    append(audio, noise(rate, 60.0, 9));
+    StreamDecoder dec(rate);
+    Collected c;
+    feed(dec, audio, c, 5);
+    OWFAX_CHECK(c.starts == 0);
+    OWFAX_CHECK(!dec.receiving());
+}
+
+OWFAX_TEST(stream_ends_when_signal_turns_to_noise) {
+    // Real case: GYA 2026-11-10 08:22, no stop tone, then 25 min of noise.
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.stop_tone_s = 0.0;
+    mod.trailer_s = 0.0;
+    const std::size_t lines = 200;
+    const auto chart = make_test_chart(mod.ioc, lines);
+    auto audio = modulate(chart, mod);
+    append(audio, noise(mod.sample_rate, 120.0, 10));
+    StreamDecoder dec(mod.sample_rate);
+    Collected c;
+    feed(dec, audio, c, 6);
+    OWFAX_CHECK(c.starts == 1);
+    OWFAX_CHECK(c.completes == 1);
+    OWFAX_CHECK(!dec.receiving());
+    if (c.finals.size() == 1 && c.finals[0]) {
+        const std::size_t h = c.finals[0]->image.height;
+        std::printf("    ended on noise: %zu lines for a %zu-line chart\n", h, lines);
+        OWFAX_CHECK(h >= lines - 2);
+        OWFAX_CHECK(h <= lines + 30);  // at most ~15 s of noise kept, not 120 s
+    } else {
+        OWFAX_CHECK(false);
+    }
+}
+
+OWFAX_TEST(stream_discards_short_fragment_without_apt) {
+    // Real case: GYA 07:21, the noisy end of a chart came out as two short pieces.
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.start_tone_s = 0.0;
+    mod.phasing_s = 0.0;
+    mod.stop_tone_s = 0.0;
+    mod.trailer_s = 0.0;
+    owfax::audio::AudioBuffer audio;
+    audio.sample_rate = mod.sample_rate;
+    append(audio, noise(mod.sample_rate, 20.0, 11));
+    // Dense content like a real chart (spread >= 0.15); the sparse test chart is not.
+    owfax::GrayImage dense(static_cast<std::size_t>(pixels_per_line(mod.ioc)), 80, 255);
+    for (std::size_t y = 0; y < dense.height; ++y) {
+        for (std::size_t x = 0; x < dense.width; ++x) {
+            dense.at(x, y) = ((x / 24) * 7919 + y / 40) % 5 < 2 ? 0 : 255;
+        }
+    }
+    append(audio, modulate(dense, mod).samples);  // 40 s
+    append(audio, noise(mod.sample_rate, 60.0, 12));
+    StreamDecoder dec(mod.sample_rate);
+    Collected c;
+    feed(dec, audio, c, 7);
+    std::printf("    fragment: %d start(s), %d discarded\n", c.starts, c.discarded);
+    OWFAX_CHECK(c.starts >= 1);
+    OWFAX_CHECK(c.starts == c.discarded);
+    for (const auto& f : c.finals) OWFAX_CHECK(!f);
+}
+
+OWFAX_TEST(stream_auto_start_can_be_disabled) {
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.start_tone_s = 0.0;
+    DecodeOptions opt;
+    opt.start_without_apt = false;
+    StreamDecoder dec(mod.sample_rate, opt);
+    Collected c;
+    feed(dec, modulate(make_test_chart(mod.ioc, 100), mod), c, 8);
+    OWFAX_CHECK(c.starts == 0);
+}
+
+OWFAX_TEST(stream_splits_charts_whose_apt_tones_were_lost) {
+    // Real case: GYA 2026-11-10 07:35, stop and start tones lost in QRM, 41 s of noise
+    // between two charts. The second one is recognised by its phasing.
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.stop_tone_s = 0.0;
+    mod.trailer_s = 0.0;
+    const auto chart = make_test_chart(mod.ioc, 200);
+    auto audio = modulate(chart, mod);
+    append(audio, noise(mod.sample_rate, 40.0, 13));
+    mod.start_tone_s = 0.0;
+    mod.stop_tone_s = 5.0;
+    append(audio, modulate(chart, mod).samples);
+    StreamDecoder dec(mod.sample_rate);
+    Collected c;
+    feed(dec, audio, c, 9);
+    OWFAX_CHECK(c.starts == 2);
+    OWFAX_CHECK(c.completes == 2);
+    if (c.finals.size() == 2 && c.finals[0] && c.finals[1]) {
+        for (const auto& f : c.finals) {
+            std::printf("    %zu lines, phasing %d, corr %.3f\n", f->image.height,
+                        f->report.phasing_found ? 1 : 0, correlation(chart, f->image));
+            OWFAX_CHECK(f->report.phasing_found);
+            OWFAX_CHECK(correlation(chart, f->image) > 0.95);
+        }
+    } else {
+        OWFAX_CHECK(false);
     }
 }

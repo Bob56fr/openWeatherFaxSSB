@@ -157,6 +157,7 @@ OWFAX_TEST(receiver_writes_live_raw_enhanced_and_metadata) {
     const std::string json = slurp(dir / (c.stem + ".json"));
     OWFAX_CHECK(json.find("\"label\": \"TEST\"") != std::string::npos);
     OWFAX_CHECK(json.find("\"ioc\": 576") != std::string::npos);
+    OWFAX_CHECK(json.find("\"start\": \"apt\"") != std::string::npos);
     OWFAX_CHECK(json.find("\"enhancements\": [\"clicks\"]") != std::string::npos);
     OWFAX_CHECK(log.size() >= 6);  // start, lock, complete per chart
 }

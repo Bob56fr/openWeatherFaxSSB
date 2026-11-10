@@ -179,6 +179,7 @@ void usage() {
         "  --no-enhanced         do not write <stem>_enh.png\n"
         "  --live-every <lines>  rewrite <stem>_live.png every N lines (default: 50)\n"
         "  --force-start         start a chart immediately (APT start missed)\n"
+        "  --no-auto-start       start only on an APT tone, not on a fax signal without one\n"
         "  --duration <s>        stop after this many seconds of audio\n"
         "  --start-unix <t>      UTC time of the first sample (default: now)\n"
         "  --journal <file>      also append the journal to this file\n"
@@ -244,6 +245,8 @@ bool parse(int argc, char** argv, Options& o) {
             o.rx.live_flush_lines = static_cast<std::size_t>(std::strtoul(v, nullptr, 10));
         } else if (a == "--force-start") {
             o.force_start = true;
+        } else if (a == "--no-auto-start") {
+            o.rx.options.start_without_apt = false;
         } else if (a == "--duration") {
             if ((v = value(i)) == nullptr) return false;
             o.duration_s = std::atof(v);

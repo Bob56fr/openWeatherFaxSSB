@@ -23,7 +23,7 @@ namespace owfax::wefax {
 
 struct StreamEvent {
     enum class Kind {
-        kStart,     ///< APT start tone detected (or forced start).
+        kStart,     ///< APT start tone, WEFAX signal without APT, or forced start.
         kLocked,    ///< Phasing analysed: line period and origin known, lines follow.
         kLine,      ///< One live image line.
         kComplete,  ///< Transmission ended (APT stop, forced stop, or length limit).
@@ -32,6 +32,7 @@ struct StreamEvent {
     double time_s = 0.0;               ///< Stream time of the event (s since the first sample).
     Ioc ioc = Ioc::k576;               ///< kStart.
     bool apt_start = false;            ///< kStart: true if from a detected tone.
+    bool signal_start = false;         ///< kStart: WEFAX signal found without APT (DSP-006).
     double clock_ppm = 0.0;            ///< kLocked.
     double tuning_offset_hz = 0.0;     ///< kLocked.
     bool phasing_found = false;        ///< kLocked.
@@ -42,6 +43,9 @@ struct StreamEvent {
     /// kComplete: same transmission decoded with the enhancement options (may be null;
     /// only when enhanced options were given to the decoder). Spec UI-008.
     std::shared_ptr<const DecodeResult> enhanced;
+    /// kComplete: the transmission was a fragment, not a chart (started without APT and
+    /// shorter than one minute); no final image. Spec DSP-006.
+    bool discarded = false;
 };
 
 class StreamDecoder {

@@ -707,12 +707,82 @@ struct ToneTracker {
     void reset() { hits = gap = 0; }
 };
 
-constexpr double kIdleKeepS = 12.0;  // history kept while waiting for a start
+constexpr double kIdleKeepS = 20.0;  // history kept while waiting for a start
 constexpr double kMaxTransmissionS = 30.0 * 60.0;
 constexpr double kPhasingRetryS = 2.0;
 // Live lines lag the input by this much, so that the APT stop tone (confirmed after
 // 1.5 s + one 0.25 s block) is detected before any line inside it is shown.
 constexpr double kLiveDelayS = 2.5;
+
+// Start without APT (DSP-006): a WEFAX signal repeats from one line to the next
+// (phasing, chart frame, coastlines, text), which noise, voice or an idle carrier
+// do not. Every kAutoStepS the last kAutoWindowS of signal are scored.
+constexpr double kAutoWindowS = 10.0;
+constexpr double kAutoStepS = 1.0;
+constexpr std::size_t kAutoAverage = 8;  // samples averaged (1 ms at 8 kHz)
+// Thresholds from 7 h of real captures (DWD 3855/7880/13882.5, GYA 4610 kHz,
+// 2026-11-09/10), one score per second: charts give spread >= 0.15 and line
+// correlation 0.55-0.95; GYA noise between charts spread ~0.25 but correlation
+// <= 0.2; the DWD idle carrier spread ~0.00. APT tones correlate too (0.97): the
+// window never includes one.
+constexpr double kAutoMinSpread = 0.08;
+constexpr double kAutoMinLineCorr = 0.5;
+constexpr double kAutoMinContrast = 0.3;  // line_corr - half_corr
+constexpr std::size_t kAutoConfirm = 5;   // consecutive positive scores (5 s)
+// End without APT stop: kLostS of noise (spread without line correlation). Real case:
+// GYA 4610 kHz 2026-11-10 08:22, no stop tone, then 25 min of noise. A white area or
+// an idle carrier (no spread) is not noise. Noise runs inside real charts (fading)
+// reach 20-30 s depending on the recording, so a duration alone cannot separate them
+// from the 41 s gap between two charts whose APT tones were both lost (GYA 07:35):
+// after a gap of at least kGapS, a new chart is recognised by its phasing instead.
+constexpr double kLostS = 60.0;
+constexpr double kLostMaxLineCorr = 0.3;
+constexpr double kGapS = 15.0;
+// Real case: GYA 07:21, the noisy end of a chart came out in short pieces. The
+// shortest useful piece in the corpus is a 171-line chart end (85 s).
+constexpr double kMinSignalChartS = 60.0;
+constexpr std::size_t kToneGuardBlocks = 2;
+
+struct SignalScore {
+    double spread = 0.0;     ///< Standard deviation of the luminance (0 = flat carrier).
+    double line_corr = 0.0;  ///< Correlation between consecutive lines.
+    double half_corr = 0.0;  ///< Correlation at half a line (a reference: no WEFAX reason).
+};
+
+SignalScore score_signal(const std::vector<float>& freq, std::size_t from, std::size_t to,
+                         double nominal, double shift_hz) {
+    SignalScore s;
+    const Levels lv = estimate_levels(freq, from, to, shift_hz);
+    const double span = lv.white - lv.black;
+    std::vector<double> x;
+    x.reserve((to - from) / kAutoAverage + 1);
+    for (std::size_t i = from; i + kAutoAverage <= to; i += kAutoAverage) {
+        double sum = 0.0;
+        for (std::size_t k = 0; k < kAutoAverage; ++k) {
+            sum += std::clamp((static_cast<double>(freq[i + k]) - lv.black) / span, 0.0, 1.0);
+        }
+        x.push_back(sum / to_d(kAutoAverage));
+    }
+    const auto line = static_cast<std::size_t>(std::lround(nominal / to_d(kAutoAverage)));
+    if (x.size() < 4 * line) return s;
+    double mean = 0.0;
+    for (double v : x) mean += v;
+    mean /= to_d(x.size());
+    double var = 0.0;
+    for (double v : x) var += (v - mean) * (v - mean);
+    var /= to_d(x.size());
+    s.spread = std::sqrt(var);
+    if (var <= 1e-9) return s;
+    auto corr = [&](std::size_t lag) {
+        double c = 0.0;
+        for (std::size_t i = 0; i + lag < x.size(); ++i) c += (x[i] - mean) * (x[i + lag] - mean);
+        return c / (to_d(x.size() - lag) * var);
+    };
+    // +-1 ms covers the clock error over the window (GYA: -43 ppm).
+    s.line_corr = std::max({corr(line - 1), corr(line), corr(line + 1)});
+    s.half_corr = corr(line / 2);
+    return s;
+}
 
 }  // namespace
 
@@ -730,7 +800,16 @@ struct StreamDecoder::Impl {
     std::vector<float> freq;  // instantaneous frequency, freq[0] = absolute index `origin`
     std::vector<float> lum;   // luminance, same indexing (once levels are known)
     std::size_t origin = 0;
-    std::size_t scanned = 0;  // absolute index of the next tone block to analyse
+    std::size_t scanned = 0;         // absolute index of the next tone block to analyse
+    std::size_t tone_free_from = 0;  // absolute: no APT tone seen after this point
+    double next_auto = 0.0;          // absolute index of the next signal score
+    std::size_t last_fax_end = 0;    // absolute end of the last window scored as WEFAX
+    bool signal_started = false;     // current transmission started without APT
+    std::size_t noise_since = 0;     // absolute: start of the current noise run (0 = none)
+    std::size_t gap_fax_end = 0;     // last_fax_end when the current noise run began
+    std::size_t resume_from = 0;     // absolute: signal back after a gap (0 = none)
+    std::size_t auto_hits = 0;
+    std::size_t auto_first = 0;  // absolute start of the first window of the current run
 
     ToneTracker start576{apt_start_hz(Ioc::k576), kStartToneMinBlocks};
     ToneTracker start288{apt_start_hz(Ioc::k288), kStartToneMinBlocks};
@@ -769,11 +848,16 @@ struct StreamDecoder::Impl {
         origin += drop;
     }
 
-    void begin(std::size_t abs_start, std::size_t abs_phasing, Ioc which, bool from_tone) {
+    void begin(std::size_t abs_start, std::size_t abs_phasing, Ioc which, bool from_tone,
+               bool from_signal = false) {
         drop_before(abs_start);
         state = State::kPhasing;
         ioc = opt.ioc.value_or(which);
         tx_start = abs_start;
+        signal_started = from_signal;
+        last_fax_end = end();
+        noise_since = 0;
+        resume_from = 0;
         phasing_from = abs_phasing;
         next_attempt = to_d(phasing_from) + rate * (kPhasingWindowS + 1.0);
         stop.reset();
@@ -782,6 +866,7 @@ struct StreamDecoder::Impl {
         e.time_s = seconds(to_d(abs_start));
         e.ioc = ioc;
         e.apt_start = from_tone;
+        e.signal_start = from_signal;
         events.push_back(std::move(e));
     }
 
@@ -905,12 +990,19 @@ struct StreamDecoder::Impl {
             }
             return std::shared_ptr<const DecodeResult>();
         };
-        if (enhanced_opt) e.enhanced = run(*enhanced_opt, tx);
-        e.final = run(opt, std::move(tx));
+        // A transmission started on the signal alone and shorter than kMinSignalChartS is
+        // a fragment (end of a chart between two noise runs), not a chart.
+        e.discarded = signal_started && to_d(end_abs - tx_start) < rate * kMinSignalChartS;
+        if (!e.discarded) {
+            if (enhanced_opt) e.enhanced = run(*enhanced_opt, tx);
+            e.final = run(opt, std::move(tx));
+        }
         events.push_back(std::move(e));
         drop_before(end_abs);
         lum.clear();
         state = State::kIdle;
+        tone_free_from = end();  // the stop tone may still be under way
+        auto_hits = 0;
         start576.reset();
         start288.reset();
         stop.reset();
@@ -932,6 +1024,12 @@ struct StreamDecoder::Impl {
                     dsp::tone_ratio(p, block, start288.tone_hz, rate) > kToneThreshold;
                 const auto r576 = start576.feed(h576, pos, block);
                 const auto r288 = start288.feed(h288, pos, block);
+                stop.feed(dsp::tone_ratio(p, block, kAptStopHz, rate) > kToneThreshold, pos, block);
+                if (start576.hits >= kToneGuardBlocks || start288.hits >= kToneGuardBlocks ||
+                    stop.hits >= kToneGuardBlocks) {
+                    tone_free_from = pos + block;
+                    auto_hits = 0;
+                }
                 const bool use576 = !opt.ioc || *opt.ioc == Ioc::k576;
                 const bool use288 = !opt.ioc || *opt.ioc == Ioc::k288;
                 if (r576 && use576) {
@@ -951,16 +1049,102 @@ struct StreamDecoder::Impl {
         }
     }
 
+    /// Start without APT (DSP-006): a WEFAX signal is present when the last
+    /// kAutoWindowS repeat from line to line, kAutoConfirm times in a row.
+    void try_auto_start() {
+        if (to_d(end()) < next_auto) return;
+        next_auto = to_d(end()) + rate * kAutoStepS;
+        const auto w = static_cast<std::size_t>(rate * kAutoWindowS);
+        if (end() < w || end() - w < std::max(origin, tone_free_from)) {
+            auto_hits = 0;
+            return;
+        }
+        const std::size_t from = end() - w;
+        const SignalScore s = score_signal(freq, from - origin, freq.size(), nominal, opt.shift_hz);
+        const bool fax = s.spread >= kAutoMinSpread && s.line_corr >= kAutoMinLineCorr &&
+                         s.line_corr - s.half_corr >= kAutoMinContrast;
+        if (!fax) {
+            auto_hits = 0;
+            return;
+        }
+        if (auto_hits++ == 0) auto_first = from;
+        if (auto_hits < kAutoConfirm) return;
+        auto_hits = 0;
+        const std::size_t at = std::max(auto_first, origin);
+        begin(at, at, opt.ioc.value_or(Ioc::k576), false, true);
+    }
+
+    /// During a transmission: ends it when the signal has turned to noise for kLostS
+    /// (APT stop tone missed), at the end of the last window still scored as WEFAX.
+    void watch_signal() {
+        if (to_d(end()) < next_auto) return;
+        next_auto = to_d(end()) + rate * kAutoStepS;
+        const auto w = static_cast<std::size_t>(rate * kAutoWindowS);
+        if (end() < tx_start + w) return;
+        const SignalScore s =
+            score_signal(freq, end() - w - origin, freq.size(), nominal, opt.shift_hz);
+        const bool noise = s.spread >= kAutoMinSpread && s.line_corr < kLostMaxLineCorr;
+        if (!noise) {
+            if (noise_since != 0 && to_d(end() - noise_since) >= rate * kGapS) {
+                resume_from = end() - w;
+            }
+            noise_since = 0;
+            last_fax_end = end();
+        } else {
+            if (noise_since == 0) {
+                noise_since = end();
+                gap_fax_end = last_fax_end;
+            }
+            if (to_d(end() - last_fax_end) >= rate * kLostS) {
+                complete(last_fax_end);
+                return;
+            }
+        }
+        if (resume_from != 0 &&
+            to_d(end()) >= to_d(resume_from) + rate * (kPhasingWindowS + 10.0)) {
+            const std::size_t at = resume_from;
+            resume_from = 0;
+            if (phasing_after(at)) {
+                // A new chart whose APT stop and start were both lost.
+                complete(gap_fax_end);
+                begin(at, at, ioc, false, true);
+            }
+        }
+    }
+
+    /// True if phasing lines (one pulse per line on a uniform background) start within
+    /// a few seconds after absolute index `from`, with the current line period.
+    bool phasing_after(std::size_t from) const {
+        const auto step = static_cast<std::size_t>(rate * 5.0);
+        const auto window = static_cast<std::size_t>(rate * kPhasingWindowS);
+        for (std::size_t k = 0; k < 3; ++k) {
+            const std::size_t a = from - origin + k * step;
+            if (a + window > lum.size()) break;
+            const Pulse pulse = find_pulse(fold(lum, a, a + window, period, kCoarseBins));
+            if (std::fabs(pulse.contrast) <= kMinPulseContrast) continue;
+            const double org = to_d(a) + pulse.center_fraction * period;
+            if (track_phasing(lum, org, period, pulse.contrast > 0.0, to_d(lum.size()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void push(const float* samples, std::size_t count) {
         const std::size_t before = freq.size();
         demod.process(samples, count, freq);
         if (state == State::kImage) update_lum(before);
         scan_tones();
+        if (state == State::kIdle && opt.start_without_apt) try_auto_start();
         if (state == State::kPhasing) try_lock();
         if (state == State::kImage) {
             const auto delay = static_cast<std::size_t>(rate * kLiveDelayS);
             if (end() > delay) emit_lines(end() - delay);
-            if (to_d(end() - tx_start) > rate * kMaxTransmissionS) complete(end());
+            if (to_d(end() - tx_start) > rate * kMaxTransmissionS) {
+                complete(end());
+            } else {
+                watch_signal();
+            }
         }
         if (state == State::kIdle) {
             const auto keep = static_cast<std::size_t>(rate * kIdleKeepS);

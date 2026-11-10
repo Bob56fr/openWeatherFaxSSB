@@ -470,7 +470,10 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
         const auto img_from = static_cast<std::size_t>(first_line);
         const std::size_t img_to = std::min(
             signal_end, img_from + static_cast<std::size_t>(to_d(kRefineMaxLines) * period));
-        ppm = best_ppm(sig, img_from, img_to, nominal, ppm, 4.0, 0.25, 0);
+        // Real case (GYA 2026-11-09 23:12): the phasing estimate was 13 ppm off, so the
+        // search must be wide enough to correct it, then fine.
+        ppm = best_ppm(sig, img_from, img_to, nominal, ppm, 20.0, 1.0, 0);
+        ppm = best_ppm(sig, img_from, img_to, nominal, ppm, 1.0, 0.1, 0);
         period = nominal * (1.0 + ppm * 1e-6);
     }
     rep.clock_ppm = ppm;

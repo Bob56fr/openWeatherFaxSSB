@@ -24,10 +24,19 @@ struct GrayImage {
     std::uint8_t at(std::size_t x, std::size_t y) const { return pixels[y * width + x]; }
 };
 
-/// Writes a lossless 8-bit grayscale PNG (spec IMG-003).
-/// Dependency-free encoder using stored (uncompressed) deflate blocks.
-/// Throws std::runtime_error on I/O failure.
-void write_png(const std::string& path, const GrayImage& image);
+/// Writes a grayscale PNG (spec IMG-003): per-scanline PNG filters and deflate
+/// compression, dependency-free. `bit_depth` 8 is lossless (the reference image);
+/// 4 keeps the nearest of 16 grey levels, about 4x smaller, for display over a slow
+/// link. Throws std::runtime_error on I/O failure.
+void write_png(const std::string& path, const GrayImage& image, int bit_depth = 8);
+/// Same PNG, in memory.
+std::vector<std::uint8_t> encode_png(const GrayImage& image, int bit_depth = 8);
+
+/// Reads an 8- or 4-bit grayscale non-interlaced PNG (as written by write_png; 4-bit
+/// levels are expanded to 0, 17, ... 255). Throws std::runtime_error on I/O failure or
+/// on any other PNG flavour.
+GrayImage read_png(const std::string& path);
+GrayImage decode_png(const std::uint8_t* data, std::size_t size);
 
 namespace detail {
 std::uint32_t crc32(const std::uint8_t* data, std::size_t size, std::uint32_t crc = 0);

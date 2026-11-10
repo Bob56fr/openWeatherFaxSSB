@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 
+#include "owfax/image/gray_image.hpp"
 #include "owfax/net/api.hpp"
 #include "owfax/net/encoding.hpp"
 #include "owfax/net/http_server.hpp"
@@ -207,6 +208,24 @@ OWFAX_TEST(net_api_serves_charts_stations_and_errors) {
         r = get(port, p);
         OWFAX_CHECK(r.status == 404 && r.body.find("secret\": 1") == std::string::npos);
     }
+
+    // Light display version (16 grey levels), made once and cached next to the original.
+    owfax::GrayImage chart(181, 40, 255);
+    for (std::size_t i = 0; i < chart.pixels.size(); ++i) {
+        chart.pixels[i] = static_cast<std::uint8_t>((i * 37) % 256);
+    }
+    owfax::write_png((root / "charts" / "20261110T0800Z_DWD.png").string(), chart);
+    r = get(port, "/api/v1/charts/20261110T0800Z_DWD/raw.png?levels=16");
+    OWFAX_CHECK(r.status == 200 && r.body.size() > 25 && r.body[24] == 4);
+    OWFAX_CHECK(fs::exists(root / "charts" / "20261110T0800Z_DWD.l16.png"));
+    const std::string first = r.body;
+    r = get(port, "/api/v1/charts/20261110T0800Z_DWD/raw.png?levels=16");
+    OWFAX_CHECK(r.status == 200 && r.body == first);
+    r = get(port, "/api/v1/charts/20261110T0800Z_DWD/raw.png");
+    OWFAX_CHECK(r.status == 200 && r.body[24] == 8);
+    OWFAX_CHECK(get(port, "/api/v1/charts/20261110T0800Z_DWD/raw.png?levels=7").status == 400);
+    OWFAX_CHECK(get(port, "/api/v1/charts/20261110T0800Z_DWD/enhanced.png?levels=16").status ==
+                404);
 
     r = get(port, "/api/v1/stations");
     OWFAX_CHECK(r.status == 200 && r.body.find("dwd-pinneberg") != std::string::npos);

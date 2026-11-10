@@ -164,3 +164,17 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   tentative de sortie de dossier refusée, arrêt propre sur SIGTERM.
 - À noter : les PNG sont écrits sans compression (2,3 Mo par carte DWD), lourd pour
   le Wi-Fi d'un bord ; à compresser avant l'interface web.
+
+### Compression des images
+
+- Compresseur deflate/zlib maison dans le cœur (LZ77 + Huffman dynamique), filtres
+  PNG choisis ligne par ligne, et lecteur PNG pour les tests. Pixels identiques à
+  l'octet près, vérifiés aussi par Pillow sur les 7 cartes du corpus.
+- Gain sans perte sur les vraies cartes : seulement ×1,3 (2,34 → 1,76 Mo pour DWD
+  22:00 ; zlib niveau 9 : 1,67 Mo ; WebP sans perte : 1,40 Mo). La limite est dans
+  l'image : le bruit FM donne ~5 bits d'entropie par pixel. Les images propres
+  (mire) gagnent ×12.
+- Version d'affichage choisie : 16 niveaux de gris (PNG 4 bits, pleine résolution),
+  `?levels=16` sur les images de l'API, faite à la première demande et gardée à côté
+  de l'original. DWD 22:00 : 0,59 Mo (×3,9) ; GYA : ×3,1 à ×3,6. Visuellement
+  identique (chiffres, fronts, isobares). L'image brute 8 bits reste la référence.

@@ -53,7 +53,8 @@ public:
 
 private:
     Response charts(const Request& request) const;
-    Response chart(const std::string& stem, const std::string& part) const;
+    Response chart(const std::string& stem, const std::string& part,
+                   const std::string& query) const;
     Response stations(const std::string& id) const;
     Response web(const std::string& path) const;
     Response info() const;

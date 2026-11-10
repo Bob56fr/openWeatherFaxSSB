@@ -79,7 +79,10 @@ API locale (lecture seule, clients du réseau local uniquement) : `--http <port>
 owfaxd --input alsa:plughw:CARD=Device,DEV=0 --out cartes --shift 850 --http 8080 --catalog catalog/stations
 curl http://192.168.1.19:8080/api/v1/charts             # cartes reçues, plus récentes d'abord
 curl -O http://192.168.1.19:8080/api/v1/charts/20261110T0735Z_GYA/raw.png
+curl -O "http://192.168.1.19:8080/api/v1/charts/20261110T0735Z_GYA/raw.png?levels=16"   # version légère
 ```
+
+Les images sont stockées sans perte (PNG 8 bits compressé, référence DSP-030). Pour l'affichage sur un téléphone en Wi-Fi, `?levels=16` sert une version à 16 niveaux de gris en pleine résolution, environ 3,5 fois plus légère, visuellement identique sur une carte.
 
 Avec CMake ≥ 3.21, des presets sont disponibles : `cmake --preset dev`, `msvc-x64`, `msvc-x86`, `linux-armhf`, `android-arm64`, `android-armv7` (voir [CMakePresets.json](CMakePresets.json)).
 

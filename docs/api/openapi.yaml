@@ -73,6 +73,13 @@ paths:
           cached); raw.png: final image as received, the reference (DSP-030);
           enhanced.png: with the enhancements listed in the metadata (UI-008, UI-009).
         schema: { type: string, enum: [live.png, raw.png, enhanced.png] }
+      - name: levels
+        in: query
+        description: |
+          16: light display version (16 grey levels, 4-bit PNG, full resolution),
+          about 3.5x smaller on real charts (2.3 MB to 0.6 MB for a DWD chart); made
+          on the first request and cached. 256 (default): the stored image, lossless.
+        schema: { type: integer, enum: [16, 256], default: 256 }
     get:
       summary: One version of a chart image
       responses:

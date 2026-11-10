@@ -7,12 +7,15 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include "owfax/build_info.hpp"
 #include "owfax/engine/receiver.hpp"
+#include "owfax/image/gray_image.hpp"
 
 namespace owfax::net {
 namespace {
@@ -79,6 +82,16 @@ std::string content_type(const fs::path& p) {
     if (ext == ".woff2") return "font/woff2";
     if (ext == ".txt") return "text/plain; charset=utf-8";
     return "application/octet-stream";
+}
+
+/// Value of `name` in a query string ("a=1&levels=16"), empty if absent.
+std::string query_value(const std::string& query, const std::string& name) {
+    std::istringstream in(query);
+    std::string pair;
+    while (std::getline(in, pair, '&')) {
+        if (pair.rfind(name + "=", 0) == 0) return pair.substr(name.size() + 1);
+    }
+    return {};
 }
 
 std::size_t query_limit(const std::string& query) {
@@ -169,8 +182,8 @@ Response Api::handle(const Request& request) {
         if (parts.size() == 3 && parts[2] == "live") return live();
         if (parts.size() >= 3 && parts[2] == "charts") {
             if (parts.size() == 3) return charts(request);
-            if (parts.size() == 4) return chart(parts[3], "");
-            if (parts.size() == 5) return chart(parts[3], parts[4]);
+            if (parts.size() == 4) return chart(parts[3], "", request.query);
+            if (parts.size() == 5) return chart(parts[3], parts[4], request.query);
         }
         if (parts.size() >= 3 && parts[2] == "stations" && parts.size() <= 4) {
             return stations(parts.size() == 4 ? parts[3] : "");
@@ -203,7 +216,8 @@ Response Api::charts(const Request& request) const {
     return Response::json(array_of_files(config_.charts_dir, stems));
 }
 
-Response Api::chart(const std::string& stem, const std::string& part) const {
+Response Api::chart(const std::string& stem, const std::string& part,
+                    const std::string& query) const {
     if (!is_safe_name(stem) || stem == "status") return error(404, "no such chart");
     const fs::path dir(config_.charts_dir);
     if (part.empty()) {
@@ -221,7 +235,41 @@ Response Api::chart(const std::string& stem, const std::string& part) const {
     } else {
         return error(404, "chart images are live.png, raw.png and enhanced.png");
     }
-    const auto data = read_file(dir / (stem + suffix));
+    const std::string levels = query_value(query, "levels");
+    if (!levels.empty() && levels != "16" && levels != "256") {
+        return error(400, "levels: 16 (light display version) or 256 (default)");
+    }
+    const fs::path source = dir / (stem + suffix);
+    std::optional<std::string> data;
+    if (levels == "16") {
+        // Display version: 16 grey levels, about 4x smaller (Wi-Fi of a boat). Made on
+        // the first request and kept next to the original, remade when it changes.
+        const fs::path cached = dir / (stem + suffix.substr(0, suffix.size() - 4) + ".l16.png");
+        std::error_code ec;
+        const auto src_time = fs::last_write_time(source, ec);
+        if (ec) return error(404, "no " + part + " for " + stem);
+        const auto cache_time = fs::last_write_time(cached, ec);
+        if (!ec && cache_time >= src_time) data = read_file(cached);
+        if (!data) {
+            const auto png = read_file(source);
+            if (!png) return error(404, "no " + part + " for " + stem);
+            const auto img =
+                decode_png(reinterpret_cast<const std::uint8_t*>(png->data()), png->size());
+            const auto light = encode_png(img, 4);
+            data = std::string(light.begin(), light.end());
+            fs::path tmp = cached;
+            tmp +=
+                ".tmp" + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+            {
+                std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+                out.write(data->data(), static_cast<std::streamsize>(data->size()));
+            }
+            fs::rename(tmp, cached, ec);
+            if (ec) fs::remove(tmp, ec);
+        }
+    } else {
+        data = read_file(source);
+    }
     if (!data) return error(404, "no " + part + " for " + stem);
     Response r;
     r.content_type = "image/png";

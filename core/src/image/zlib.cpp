@@ -157,6 +157,9 @@ std::vector<std::uint32_t> canonical_codes(const std::vector<std::uint8_t>& len)
 std::vector<std::pair<std::uint8_t, std::uint8_t>> rle_lengths(
     const std::vector<std::uint8_t>& lens) {
     std::vector<std::pair<std::uint8_t, std::uint8_t>> out;
+    auto add = [&out](std::size_t sym, std::size_t extra) {
+        out.emplace_back(static_cast<std::uint8_t>(sym), static_cast<std::uint8_t>(extra));
+    };
     std::size_t i = 0;
     while (i < lens.size()) {
         const std::uint8_t v = lens[i];
@@ -166,25 +169,25 @@ std::vector<std::pair<std::uint8_t, std::uint8_t>> rle_lengths(
             std::size_t left = run;
             while (left >= 11) {
                 const std::size_t k = std::min<std::size_t>(left, 138);
-                out.emplace_back(18, static_cast<std::uint8_t>(k - 11));
+                add(18, static_cast<std::uint8_t>(k - 11));
                 left -= k;
             }
             if (left >= 3) {
-                out.emplace_back(17, static_cast<std::uint8_t>(left - 3));
+                add(17, static_cast<std::uint8_t>(left - 3));
                 left = 0;
             }
-            for (; left > 0; --left) out.emplace_back(0, 0);
+            for (; left > 0; --left) add(0, 0);
         } else if (v != 0 && run >= 4) {
-            out.emplace_back(v, 0);
+            add(v, 0);
             std::size_t left = run - 1;
             while (left >= 3) {
                 const std::size_t k = std::min<std::size_t>(left, 6);
-                out.emplace_back(16, static_cast<std::uint8_t>(k - 3));
+                add(16, static_cast<std::uint8_t>(k - 3));
                 left -= k;
             }
-            for (; left > 0; --left) out.emplace_back(v, 0);
+            for (; left > 0; --left) add(v, 0);
         } else {
-            for (std::size_t k = 0; k < run; ++k) out.emplace_back(v, 0);
+            for (std::size_t k = 0; k < run; ++k) add(v, 0);
         }
         i += run;
     }

@@ -80,3 +80,42 @@ CI : 14 jobs verts (dont réceptions réelles). Tests : 33.
    (API SDRplay propriétaire : uniquement en outil de capture, hors binaires.)
 4. **Réparation des lignes (DSP-021)** : interpolation verticale des lignes isolées
    dégradées, signalée comme « traitée ». D'accord pour la faire en option comme les clics ?
+
+Réponses (10 novembre) : 1) garder les deux versions (UI-008) ; 2) fait, voir plus bas ;
+3) pas de SDR pour l'instant — et la diversité se fera uniquement avec des récepteurs
+locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avant/Après
+(UI-009) — la réparation reste expérimentale, sans gain visible.
+
+## 10 novembre 2026 — moteur de réception owfaxd et planning DWD d'hiver
+
+### owfaxd (BG-001)
+
+- Entrées : `wav:`, `stdin` (s16le), `alsa:` (Linux, optionnel). Un fil de capture
+  remplit une file bornée ; la file est sans perte pour les fichiers et les tubes,
+  et ne jette l'audio le plus ancien que pour une vraie carte son.
+- Chaque carte : `_live.png` (réécrit toutes les 50 lignes), `.png` brut, `_enh.png`,
+  `.json` ; `status.json` toutes les 5 s. Réception seule, pas de CAT.
+- Sur la capture DWD 22:00 rejouée, l'image brute est identique octet pour octet à
+  celle de `owfax-cli decode`. Corpus : 5 cartes sur 7 en flux ; les 2 manquées n'ont
+  pas d'APT de démarrage (capture commencée en cours de carte, APT GYA haché) →
+  à faire : démarrage automatique sur signal fax structuré sans APT.
+- Premier défaut trouvé en essai : la file jetait de l'audio en lisant un fichier
+  (le lecteur va plus vite que le décodeur). Corrigé (`is_live()`).
+
+### Essai en direct sur l'IC-7300 (ALSA, 13882,5 kHz, 11:21 – 15:05 UTC)
+
+- 11 cartes reçues, toutes avec phasage, −3,3 à −6 ppm, qualité 99 – 100 %,
+  aucune perte d'audio ni dépassement de tampon en 3 h 40.
+- Relance à 14:11 pour le planning : garde-fou des relais respecté (≥ 6 s entre la
+  remise des réglages et le nouvel accord) ; la session cron de 14:19 s'est annulée
+  seule (verrou radio).
+
+### Planning DWD d'hiver
+
+- Cartes « Schedule part 1 / part 2 » reçues à 14:25 et 14:45, transcrites dans
+  `catalog/stations/dwd-pinneberg.json` (48 créneaux, 04:30 – 22:00 UTC), avec les
+  réceptions réelles en `observed`. Le ton APT tombe à la minute annoncée.
+- Puissance diffusée : 10 kW sur les trois fréquences (le catalogue disait 20 kW).
+- Rien après 22:00 : cohérent avec la porteuse blanche vue le 9 de 22:11 à 22:45.
+- 11:23 et 13:08 : aucun démarrage détecté alors qu'owfaxd écoutait (non émis ou APT
+  manqué, non tranché). La même carte figure deux fois au planning (11:23 et 11:35).

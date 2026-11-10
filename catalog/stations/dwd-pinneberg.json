@@ -23,13 +23,13 @@
       {
         "callsign": "DDK3",
         "assigned_khz": 7880.0,
-        "power_kw": 20.0,
+        "power_kw": 10.0,
         "emission": "F1C"
       },
       {
         "callsign": "DDK6",
         "assigned_khz": 13882.5,
-        "power_kw": 20.0,
+        "power_kw": 10.0,
         "emission": "F1C"
       }
     ],
@@ -41,15 +41,22 @@
         "white_hz": 2319,
         "note": "tuned for 1900 Hz centre; measured span 834 Hz (nominal 850)"
       }
-    ]
+    ],
+    "power_source": "broadcast-2026-11-10 (10 kW on all three frequencies; earlier sources said 20 kW for DDK3/DDK6)"
   },
   "sources": [
+    {
+      "id": "broadcast-2026-11-10",
+      "note": "Authoritative: schedule charts broadcast by DWD (part 1 at 14:25, part 2 at 14:45 UTC), received on 13882.5 kHz on 2026-11-10 by owfaxd and transcribed by hand. Images: corpus decoded/20261110T1424Z_DWD_13882.5kHz.png and 20261110T1444Z_DWD_13882.5kHz.png.",
+      "retrieved": "2026-11-10",
+      "more": "https://www.dwd.de/sendeplan"
+    },
     {
       "id": "weatherfax-2024",
       "url": "https://weatherfax.com/wp-content/uploads/2024/09/DWD-Jun-Oct-2024.pdf",
       "retrieved": "2026-11-09",
       "valid": "2024-06-10/2024-10-01",
-      "note": "Most recent schedule found (PDF created 2024-09-03). Used as the reference schedule."
+      "note": "Jun-Oct 2024 schedule (PDF created 2024-09-03). Superseded by broadcast-2026-11-10."
     },
     {
       "id": "dwd-current",
@@ -62,262 +69,259 @@
       "url": "https://www.dwd.de/DE/fachnutzer/schifffahrt/funkausstrahlung/sendeplan_fax_052014.pdf?__blob=publicationFile&v=1",
       "retrieved": "2026-11-09",
       "note": "PDF created 2014-09-30. Superseded by weatherfax-2024 (different times)."
-    },
-    {
-      "id": "broadcast",
-      "note": "Authoritative: the schedule chart broadcast daily at 11:11 UTC. Not yet captured."
     }
   ],
-  "verification": "All times are UTC (Paris = UTC+1 in winter, UTC+2 in summer). The reference schedule is the Jun-Oct 2024 one; the 2026 winter schedule may differ. Confirm against the schedule charts broadcast at 14:25 and 14:45 UTC. 'observed' lists real receptions.",
+  "verification": "All times are UTC (Paris = UTC+1 in winter, UTC+2 in summer). Schedule transcribed from the schedule charts broadcast on 2026-11-10 (14:25 and 14:45 UTC). Charts usually start with their APT tone at the listed minute. 'observed' lists real receptions.",
   "schedule": [
     {
       "utc": "04:30",
-      "content": "MSL weather chart N Atlantic, Europe"
-    },
-    {
-      "utc": "05:00",
-      "content": "H+00, H+24 MSL pressure, wind (10 m)"
+      "content": "Surface Analysis 00UTC North Atlantic, Europe"
     },
     {
       "utc": "05:12",
-      "content": "H+36 MSL pressure"
+      "content": "36HR-forecast MSL pressure"
     },
     {
       "utc": "05:25",
-      "content": "MSL pressure analysis, significant weather, ice"
+      "content": "MSL pressure analysis 00UTC, arrows showing movement of pressure systems, significant weather, ice"
     },
     {
       "utc": "06:38",
-      "content": "N Atlantic tropical storms information (during season)"
+      "content": "Information of tropical storms, North Atlantic (during season only)"
     },
     {
       "utc": "06:51",
-      "content": "H+12, H+24 500 hPa H+T, MSL pressure"
+      "content": "12HR, 24HR 500 hPa H+T, MSL pressure"
     },
     {
       "utc": "07:04",
-      "content": "H+12, H+24 850 hPa H+T, 700 hPa relative humidity"
+      "content": "12HR, 24HR 850 hPa H+T, 700 hPa U",
+      "observed": [
+        "2026-11-10 7880 kHz: received complete (cron session), 1239 lines, -3.9 ppm, quality 99 %"
+      ]
     },
     {
       "utc": "07:17",
-      "content": "H+36 MSL pressure"
+      "content": "36HR-forecast MSL pressure, repetition of chart 05.12 UTC"
     },
     {
       "utc": "07:30",
-      "content": "H+48 MSL pressure"
+      "content": "48HR-forecast surface pressure"
     },
     {
       "utc": "07:43",
-      "content": "H+60 MSL pressure"
+      "content": "60HR-forecast surface pressure"
     },
     {
       "utc": "08:04",
-      "content": "H+84 MSL pressure"
+      "content": "84HR-forecast surface pressure"
     },
     {
       "utc": "08:17",
-      "content": "H+108 MSL pressure"
+      "content": "108HR-forecast surface pressure"
     },
     {
       "utc": "08:30",
-      "content": "H+00, H+24 MSL pressure, wind (10 m) (special broadcast)"
+      "content": "24HR-forecast wind and swell"
     },
     {
-      "utc": "08:43",
-      "content": "Analysis 500 hPa H (special broadcast)"
+      "utc": "08:42",
+      "content": "48HR-forecast wind and swell"
     },
     {
-      "utc": "08:55",
-      "content": "H+36, H+48 MSL pressure, wind (10 m) (special broadcast)"
+      "utc": "08:54",
+      "content": "72HR-forecast wind and swell"
     },
     {
-      "utc": "09:07",
-      "content": "H+24 925 hPa, 700 hPa relative humidity (special broadcast)"
+      "utc": "09:06",
+      "content": "96HR-forecast wind and swell"
     },
     {
-      "utc": "09:19",
-      "content": "H+36 925 hPa, 700 hPa relative humidity (special broadcast)"
+      "utc": "09:30",
+      "content": "36HR, 48HR 500 hPa H+T, surface pressure"
     },
     {
-      "utc": "09:31",
-      "content": "H+72, H+96 MSL pressure, wind (10 m) (special broadcast)"
+      "utc": "09:45",
+      "content": "Sea surface temperature North Sea",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received (cron session), 2351 lines (long chart), quality 100 %"
+      ]
     },
     {
-      "utc": "09:43",
-      "content": "H+24 sea and swell, wind and swell direction"
+      "utc": "10:07",
+      "content": "Ice conditions chart Western Baltic Sea or special area if ice situation requires",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received (cron session), 1296 lines, quality 100 %"
+      ]
     },
     {
-      "utc": "09:55",
-      "content": "Sea surface temperature, North Sea"
+      "utc": "10:29",
+      "content": "48HR wave prediction North Atlantic",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received (cron session), 2352 lines (long chart), quality 100 %"
+      ]
     },
     {
-      "utc": "10:16",
-      "content": "H+48 sea and swell, wind and swell direction"
+      "utc": "10:50",
+      "content": "Surface Analysis North Atlantic, Europe"
     },
     {
-      "utc": "10:28",
-      "content": "H+72 sea and swell, wind and swell direction"
+      "utc": "11:11",
+      "content": "36HR, 48HR 850 hPa H+T, 700 hPa relative humidity",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received, truncated by the end of the capture at 11:20 (918 lines)"
+      ]
     },
     {
-      "utc": "10:40",
-      "content": "H+48 N Atlantic wave prediction"
+      "utc": "11:23",
+      "content": "60HR, 72HR 850 hPa H+T, 700 hPa relative humidity",
+      "observed": [
+        "2026-11-10 13882.5 kHz: no APT start detected (owfaxd listening from 11:21:35)"
+      ]
     },
     {
-      "utc": "11:00",
-      "content": "Surface weather chart"
-    },
-    {
-      "utc": "11:20",
-      "content": "H+96 sea and swell, wind and swell direction"
-    },
-    {
-      "utc": "11:32",
-      "content": "H+36, H+48 500 hPa H+T, MSL pressure"
-    },
-    {
-      "utc": "11:44",
-      "content": "H+36, H+48 850 hPa H+T, 700 hPa relative humidity"
+      "utc": "11:35",
+      "content": "60HR, 72HR 850 hPa H+T, 700 hPa relative humidity (listed twice by DWD: 11:23 and 11:35)",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 11:35, chart valid +60 h / +72 h, 1295 lines, quality 99 %"
+      ]
     },
     {
       "utc": "12:36",
-      "content": "Ice condition chart western Baltic"
+      "content": "Surface Analysis North Atlantic, Europe, repetition of chart 10.50 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 12:36, 1296 lines, quality 99 %"
+      ]
     },
     {
-      "utc": "12:57",
-      "content": "Rebroadcast of 0717"
+      "utc": "12:56",
+      "content": "36HR-forecast surface pressure, repetition of chart 05.12 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 12:56, 1296 lines, quality 100 %"
+      ]
     },
     {
-      "utc": "13:14",
-      "content": "Rebroadcast of 0730"
+      "utc": "13:08",
+      "content": "48HR-forecast surface pressure, repetition of chart 07.30 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: no APT start detected (owfaxd listening)"
+      ]
     },
     {
-      "utc": "13:25",
-      "content": "Rebroadcast of 0830"
+      "utc": "13:20",
+      "content": "60HR-forecast surface pressure, repetition of chart 07.43 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 13:20, 1296 lines, quality 100 %"
+      ]
     },
     {
-      "utc": "13:37",
-      "content": "Rebroadcast of 0855"
+      "utc": "13:32",
+      "content": "84HR-forecast surface pressure, repetition of chart 08.04 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 13:32, 1296 lines, quality 100 %"
+      ]
     },
     {
-      "utc": "13:49",
-      "content": "H+60, H+72 500 hPa H+T, MSL pressure"
+      "utc": "13:44",
+      "content": "108HR-forecast surface pressure, repetition of chart 08.17 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 13:44, 1296 lines, quality 100 %"
+      ]
     },
     {
-      "utc": "14:01",
-      "content": "H+60, H+72 850 hPa H+T, 700 hPa relative humidity"
-    },
-    {
-      "utc": "14:13",
-      "content": "Rebroadcast of 0931"
+      "utc": "13:56",
+      "content": "Surface Analysis North Atlantic, repetition of chart 10.50 UTC",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 13:56, 1296 lines, quality 99 %"
+      ]
     },
     {
       "utc": "14:25",
-      "content": "Broadcast schedule (part 1)"
+      "content": "Schedule part 1",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 14:25, 2224 lines, quality 100 % (source of this schedule)"
+      ]
     },
     {
       "utc": "14:45",
-      "content": "Broadcast schedule (part 2)"
+      "content": "Schedule part 2",
+      "observed": [
+        "2026-11-10 13882.5 kHz: received live by owfaxd, APT start 14:45, 2223 lines, quality 100 % (source of this schedule)"
+      ]
     },
     {
       "utc": "15:08",
-      "content": "Ice condition chart NW Atlantic"
+      "content": "Ice conditions chart Northwest Atlantic, Canadian Ice Service or International Ice Patrol"
     },
     {
       "utc": "15:20",
-      "content": "Ice condition chart western Baltic"
+      "content": "Ice conditions chart Western Baltic or special area"
     },
     {
       "utc": "15:40",
-      "content": "Ice condition chart Arctic sea"
+      "content": "Ice conditions chart Arctic Sea"
     },
     {
       "utc": "16:36",
-      "content": "Surface weather chart N Atlantic, Europe"
+      "content": "Surface Analysis 12UTC North Atlantic, Europe"
     },
     {
       "utc": "18:00",
-      "content": "MSL pressure analysis, significant weather, ice"
+      "content": "MSL pressure analysis 12UTC, arrows showing movement of pressure systems, significant weather, ice"
     },
     {
       "utc": "18:21",
-      "content": "N Atlantic tropical storms information (during season)"
+      "content": "Information of tropical storms, North Atlantic (during season only)"
     },
     {
       "utc": "18:34",
-      "content": "H+48 MSL pressure"
+      "content": "48HR-forecast MSL pressure"
     },
     {
       "utc": "18:47",
-      "content": "H+60 MSL pressure"
+      "content": "60HR-forecast MSL pressure"
     },
     {
       "utc": "19:00",
-      "content": "H+84 MSL pressure"
+      "content": "84HR-forecast MSL pressure, repetition of chart 08.04 UTC"
     },
     {
-      "utc": "19:12",
-      "content": "H+00, H+24 MSL pressure, wind (10 m) (special broadcast)"
+      "utc": "19:13",
+      "content": "24HR-forecast wind and swell"
     },
     {
-      "utc": "19:24",
-      "content": "Analysis 500 hPa H (special broadcast)"
+      "utc": "19:26",
+      "content": "48HR-forecast wind and swell"
     },
     {
-      "utc": "19:36",
-      "content": "H+36, H+48 MSL pressure, wind (10 m) (special broadcast)"
+      "utc": "19:39",
+      "content": "72HR-forecast wind and swell"
     },
     {
-      "utc": "20:35",
-      "content": "H+24 925 hPa, 700 hPa relative humidity (special broadcast)"
+      "utc": "21:00",
+      "content": "Ice conditions chart North-West Atlantic"
     },
     {
-      "utc": "20:47",
-      "content": "H+36 925 hPa, 700 hPa relative humidity (special broadcast)"
+      "utc": "21:15",
+      "content": "Ice conditions chart Western Baltic Sea or special area"
     },
     {
-      "utc": "20:59",
-      "content": "H+72, H+96 MSL pressure, wind (10 m) (special broadcast)"
-    },
-    {
-      "utc": "21:11",
-      "content": "H+24 sea and swell, wind and swell direction"
-    },
-    {
-      "utc": "21:23",
-      "content": "H+48 sea and swell, wind and swell direction"
-    },
-    {
-      "utc": "21:35",
-      "content": "H+72 sea and swell, wind and swell direction",
+      "utc": "21:36",
+      "content": "48HR wave prediction",
       "observed": [
-        "2026-11-09 3855 kHz: end of a chart received (recording started 21:45:58), wave/swell values visible"
+        "2026-11-09 3855 kHz: end of a wave/swell chart received (recording started 21:45:58)"
       ]
-    },
-    {
-      "utc": "21:47",
-      "content": "Ice condition chart NW Atlantic"
     },
     {
       "utc": "22:00",
-      "content": "MSL weather chart N Atlantic, Europe",
+      "content": "Surface Analysis 18UTC North Atlantic, Europe",
       "observed": [
-        "2026-11-09 3855 kHz: received complete, APT start 22:00:01, 'Boden 09 November 2026 18 UTC' surface analysis, 1295 lines"
-      ]
-    },
-    {
-      "utc": "22:20",
-      "content": "Ice condition chart western Baltic",
-      "observed": [
-        "2026-11-09 3855 kHz: NOT broadcast (idle white carrier 22:11-22:45)"
-      ]
-    },
-    {
-      "utc": "22:40",
-      "content": "H+48 N Atlantic wave prediction",
-      "observed": [
-        "2026-11-09 3855 kHz: NOT broadcast (idle white carrier 22:11-22:45)"
+        "2026-11-09 3855 kHz: received complete, APT start 22:00:01, surface analysis 18 UTC, 1295 lines"
       ]
     }
   ],
-  "schedule_source": "weatherfax-2024"
+  "schedule_source": "broadcast-2026-11-10",
+  "schedule_notes": [
+    "After 22:00 UTC nothing is listed until 04:30: on 2026-11-09 an idle white carrier was observed on 3855 kHz from 22:11 to 22:45 (the 2024 schedule still listed 22:20 and 22:40)."
+  ]
 }

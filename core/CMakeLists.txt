@@ -13,6 +13,7 @@ add_library(owfax_core
   src/capabilities.cpp
   src/dsp/fir.cpp
   src/dsp/fm_demod.cpp
+  src/dsp/spectrum.cpp
   src/engine/receiver.cpp
   src/image/gray_image.cpp
   src/image/png_writer.cpp

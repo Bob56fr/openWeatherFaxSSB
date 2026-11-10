@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <csignal>
 #include <cstdio>
@@ -31,6 +32,8 @@
 #include <vector>
 
 #include "owfax/build_info.hpp"
+#include "owfax/capabilities.hpp"
+#include "owfax/dsp/spectrum.hpp"
 #include "owfax/engine/receiver.hpp"
 #include "owfax/io/audio_input.hpp"
 #include "owfax/net/api.hpp"
@@ -365,6 +368,54 @@ void write_status(const fs::path& dir, const std::string& json) {
 }
 
 /// Live message for the WebSocket /api/v1/live (format: docs/api/openapi.yaml).
+/// Diagnostics for /api/v1/diagnostics (spec UI-007): host, tier, inputs, options.
+std::string diagnostics_json(const Options& o, const std::string& input, int rate) {
+    using owfax::engine::json_escape;
+    const auto caps = owfax::detect_host_capabilities();
+    std::string j = "{\n  \"host\": {\"os\": \"" + json_escape(caps.os_family) +
+                    "\", \"cpu_cores\": " + std::to_string(caps.cpu_cores) +
+                    ", \"ram_bytes\": " + std::to_string(caps.ram_bytes) + ", \"tier\": \"" +
+                    std::string(owfax::to_string(owfax::classify(caps))) + "\"},\n";
+    j += "  \"input\": {\"uri\": \"" + json_escape(o.input) + "\", \"description\": \"" +
+         json_escape(input) + "\", \"sample_rate\": " + std::to_string(rate) + "},\n";
+    j += "  \"backends\": [";
+    bool first = true;
+    for (const auto& b : owfax::io::input_backends()) {
+        j += (first ? "\"" : ", \"") + json_escape(b) + "\"";
+        first = false;
+    }
+    j += "],\n  \"inputs\": [";
+    first = true;
+    for (const auto& d : owfax::io::list_inputs()) {
+        j += std::string(first ? "\n" : ",\n") + "    {\"uri\": \"" + json_escape(d.uri) +
+             "\", \"description\": \"" + json_escape(d.description) + "\"}";
+        first = false;
+    }
+    j += first ? "],\n" : "\n  ],\n";
+    j += "  \"options\": {\"label\": \"" + json_escape(o.rx.label) +
+         "\", \"shift_hz\": " + fmt("%.0f", o.rx.options.shift_hz) +
+         ", \"start_without_apt\": " + (o.rx.options.start_without_apt ? "true" : "false") +
+         ", \"enhanced\": " + (o.rx.enhanced ? "true" : "false") + "}\n}";
+    return j;
+}
+
+/// Input spectrum and level for the live clients (diagnostic page, UI-007).
+std::string spectrum_json(const owfax::dsp::SpectrumFrame& f) {
+    constexpr double kMin = -110.0;  // dB mapped to 0 … 255
+    constexpr double kMax = 0.0;
+    std::vector<std::uint8_t> bytes(f.db.size());
+    for (std::size_t i = 0; i < f.db.size(); ++i) {
+        const double v = (static_cast<double>(f.db[i]) - kMin) / (kMax - kMin) * 255.0;
+        bytes[i] = static_cast<std::uint8_t>(std::lround(std::clamp(v, 0.0, 255.0)));
+    }
+    return "{\"type\": \"spectrum\", \"max_hz\": " + fmt("%.0f", f.max_hz) +
+           ", \"db_min\": -110, \"db_max\": 0, \"bands\": \"" +
+           owfax::net::base64_encode(bytes.data(), bytes.size()) +
+           "\", \"rms_dbfs\": " + fmt("%.1f", f.rms_dbfs) +
+           ", \"peak_dbfs\": " + fmt("%.1f", f.peak_dbfs) +
+           ", \"clipped\": " + std::to_string(f.clipped) + "}";
+}
+
 std::string event_json(const owfax::wefax::StreamEvent& e, const std::string& stem) {
     using Kind = owfax::wefax::StreamEvent::Kind;
     using owfax::engine::json_escape;
@@ -425,6 +476,8 @@ int run(const Options& o) {
         ac.catalog_dir = o.catalog_dir;
         ac.web_dir = o.web_dir;
         ac.input = input;
+        ac.journal_path = o.journal;
+        ac.diagnostics = [&o, input, rate] { return diagnostics_json(o, input, rate); };
         api = std::make_unique<owfax::net::Api>(ac);
         owfax::net::HttpServer::Options so;
         so.bind = o.http_bind;
@@ -463,6 +516,7 @@ int run(const Options& o) {
         queue.close();
     });
 
+    owfax::dsp::SpectrumAnalyzer spectrum(rate);
     std::size_t processed = 0;
     std::size_t charts = 0;
     auto update_status = [&](const std::string& state, const std::string& stem) {
@@ -489,6 +543,13 @@ int run(const Options& o) {
             // After a stop request, audio still queued is discarded: stop promptly.
             if (!interrupted) {
                 rx.push(block->data(), block->size());
+                if (api && api->live_clients() > 0) {
+                    auto frame = spectrum.push(block->data(), block->size());
+                    while (frame) {
+                        api->publish(spectrum_json(*frame));
+                        frame = spectrum.push(nullptr, 0);
+                    }
+                }
                 processed += block->size();
             }
         } else if (queue.closed_and_empty()) {

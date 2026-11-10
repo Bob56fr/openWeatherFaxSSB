@@ -12,11 +12,15 @@
 //   GET /api/v1/charts/{stem}/{live|raw|enhanced}.png
 //   GET /api/v1/stations                      station catalogue
 //   GET /api/v1/stations/{id}
-//   GET /api/v1/live                          WebSocket: start, lock, line, complete…
+//   GET /api/v1/live                          WebSocket: start, lock, line, complete,
+//                                             status, spectrum (input audio)
+//   GET /api/v1/diagnostics                   host, hardware tier, inputs (UI-007)
+//   GET /api/v1/journal                       journal, for bug reports (UI-007)
 //   GET /…                                    web interface (static files)
 
 #pragma once
 
+#include <functional>
 #include <mutex>
 #include <set>
 #include <string>
@@ -30,6 +34,9 @@ struct ApiConfig {
     std::string catalog_dir;       ///< Station JSON files (empty = no catalogue).
     std::string web_dir;           ///< Web interface files (empty = built-in page).
     std::string input;             ///< Description of the audio input.
+    std::string journal_path;      ///< Journal served at /api/v1/journal (empty = none).
+    /// JSON object for /api/v1/diagnostics (host, inputs, options), built on request.
+    std::function<std::string()> diagnostics;
 };
 
 class Api {
@@ -58,6 +65,8 @@ private:
     Response stations(const std::string& id) const;
     Response web(const std::string& path) const;
     Response info() const;
+    Response diagnostics() const;
+    Response journal() const;
     Response live();
 
     ApiConfig config_;

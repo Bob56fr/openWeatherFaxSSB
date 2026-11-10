@@ -25,6 +25,7 @@
     <a href="#live" data-i18n="nav.live" data-tab="live"></a>
     <a href="#charts" data-i18n="nav.charts" data-tab="charts"></a>
     <a href="#schedule" data-i18n="nav.schedule" data-tab="schedule"></a>
+    <a href="#diag" data-i18n="nav.diag" data-tab="diag"></a>
     <a href="#settings" data-i18n="nav.settings" data-tab="settings"></a>
   </nav>
 </header>
@@ -67,6 +68,23 @@
     <h1 data-i18n="schedule.title"></h1>
     <p class="meta" id="schedule-clock"></p>
     <div id="schedule"></div>
+  </section>
+
+  <section id="view-diag" class="view" hidden>
+    <h1 data-i18n="diag.title"></h1>
+    <h2 data-i18n="diag.level"></h2>
+    <div class="meter" aria-hidden="true"><div id="meter-rms"></div><div id="meter-peak"></div></div>
+    <p id="level-text" class="meta"></p>
+    <h2 data-i18n="diag.spectrum"></h2>
+    <p class="meta" data-i18n="diag.spectrum_help"></p>
+    <div class="scope">
+      <canvas id="spectrum" width="600" height="160"></canvas>
+      <canvas id="waterfall" width="600" height="180"></canvas>
+    </div>
+    <p id="spectrum-wait" class="empty" data-i18n="diag.waiting"></p>
+    <h2 data-i18n="diag.system"></h2>
+    <table id="diag-table" class="report"></table>
+    <p><a class="button" href="/api/v1/journal" download data-i18n="diag.journal"></a></p>
   </section>
 
   <section id="view-settings" class="view" hidden>

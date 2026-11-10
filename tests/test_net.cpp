@@ -162,6 +162,9 @@ OWFAX_TEST(net_api_serves_charts_stations_and_errors) {
     cfg.charts_dir = (root / "charts").string();
     cfg.catalog_dir = (root / "catalog").string();
     cfg.input = "test input";
+    write_file(root / "journal.log", "first line\nsecond line\n");
+    cfg.journal_path = (root / "journal.log").string();
+    cfg.diagnostics = [] { return std::string("{\"host\": {\"tier\": \"discovery\"}}"); };
     Api api(cfg);
     api.set_status("{\"state\": \"listening\"}");
     HttpServer::Options opt;
@@ -176,6 +179,12 @@ OWFAX_TEST(net_api_serves_charts_stations_and_errors) {
     OWFAX_CHECK(r.body.find("\"source_url\"") != std::string::npos);  // AGPL §13
     OWFAX_CHECK(r.body.find("\"receive_only\": true") != std::string::npos);
     OWFAX_CHECK(r.body.find("test input") != std::string::npos);
+
+    r = get(port, "/api/v1/diagnostics");
+    OWFAX_CHECK(r.status == 200 && r.body.find("discovery") != std::string::npos);
+    r = get(port, "/api/v1/journal");
+    OWFAX_CHECK(r.status == 200 && r.body.find("second line") != std::string::npos);
+    OWFAX_CHECK(r.head.find("Content-Disposition: attachment") != std::string::npos);
 
     r = get(port, "/api/v1/status");
     OWFAX_CHECK(r.status == 200 && r.body.find("listening") != std::string::npos);

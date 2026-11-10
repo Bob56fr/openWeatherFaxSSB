@@ -178,6 +178,8 @@ Response Api::handle(const Request& request) {
     if (parts.size() >= 2 && parts[0] == "api") {
         if (parts[1] != "v1") return error(404, "unknown API version (this server: v1)");
         if (parts.size() == 3 && parts[2] == "info") return info();
+        if (parts.size() == 3 && parts[2] == "diagnostics") return diagnostics();
+        if (parts.size() == 3 && parts[2] == "journal") return journal();
         if (parts.size() == 3 && parts[2] == "status") return Response::json(status() + "\n");
         if (parts.size() == 3 && parts[2] == "live") return live();
         if (parts.size() >= 3 && parts[2] == "charts") {
@@ -206,6 +208,32 @@ Response Api::info() const {
     body += "  \"input\": \"" + json_escape(config_.input) + "\"\n";
     body += "}\n";
     return Response::json(body);
+}
+
+Response Api::diagnostics() const {
+    if (!config_.diagnostics) return error(404, "no diagnostics from this engine");
+    return Response::json(config_.diagnostics() + "\n");
+}
+
+Response Api::journal() const {
+    constexpr std::uintmax_t kMaxBytes = 512 * 1024;  // the latest part only
+    if (config_.journal_path.empty()) return error(404, "no journal (option --journal)");
+    std::error_code ec;
+    const std::uintmax_t size = fs::file_size(config_.journal_path, ec);
+    if (ec) return error(404, "journal not found");
+    std::ifstream in(config_.journal_path, std::ios::binary);
+    if (size > kMaxBytes) in.seekg(static_cast<std::streamoff>(size - kMaxBytes));
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (size > kMaxBytes) {
+        const auto nl = text.find('\n');  // start on a whole line
+        if (nl != std::string::npos) text.erase(0, nl + 1);
+    }
+    Response r;
+    r.content_type = "text/plain; charset=utf-8";
+    r.body = std::move(text);
+    r.headers.emplace_back("Cache-Control", "no-store");
+    r.headers.emplace_back("Content-Disposition", "attachment; filename=\"owfaxd-journal.txt\"");
+    return r;
 }
 
 Response Api::charts(const Request& request) const {

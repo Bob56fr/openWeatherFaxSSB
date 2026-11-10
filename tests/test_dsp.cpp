@@ -8,6 +8,7 @@
 #include "owfax/audio/resample.hpp"
 #include "owfax/dsp/fir.hpp"
 #include "owfax/dsp/fm_demod.hpp"
+#include "owfax/dsp/spectrum.hpp"
 #include "owfax/wefax/probe.hpp"
 #include "owfax_test.hpp"
 
@@ -89,4 +90,58 @@ OWFAX_TEST(probe_rejects_idle_carrier) {
     const auto idle = owfax::wefax::probe(carrier);
     OWFAX_CHECK(idle.freq_spread_hz < 100.0);
     OWFAX_CHECK(idle.score < 0.05);
+}
+
+OWFAX_TEST(spectrum_locates_tones_and_measures_level) {
+    // WEFAX black and white tones of a mistuned receiver (+100 Hz), half scale, 48 kHz.
+    const double rate = 48000.0;
+    std::vector<float> s(48000);
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        const double t = static_cast<double>(i) / rate;
+        s[i] = static_cast<float>(0.25 * std::sin(kTwoPi * 1600.0 * t) +
+                                  0.25 * std::sin(kTwoPi * 2400.0 * t));
+    }
+    owfax::dsp::SpectrumAnalyzer an(48000, 300, 3000.0, 0.25);  // 10 Hz bands
+    std::vector<owfax::dsp::SpectrumFrame> frames;
+    for (std::size_t pos = 0; pos < s.size(); pos += 4800) {  // 0.1 s blocks, as owfaxd
+        auto f = an.push(&s[pos], 4800);
+        while (f) {
+            frames.push_back(*f);
+            f = an.push(nullptr, 0);
+        }
+    }
+    OWFAX_CHECK(frames.size() == 4);  // one per 0.25 s
+    if (frames.empty()) return;
+    const auto& f = frames.back();
+    OWFAX_CHECK(f.db.size() == 300 && f.max_hz == 3000.0);
+    // Strongest band around each expected tone (bands are 10 Hz wide).
+    auto argmax = [&](std::size_t from, std::size_t to) {
+        std::size_t best = from;
+        for (std::size_t i = from; i < to; ++i) {
+            if (f.db[i] > f.db[best]) best = i;
+        }
+        return best;
+    };
+    const std::size_t lo = argmax(130, 200);
+    const std::size_t hi = argmax(210, 280);
+    OWFAX_CHECK(lo >= 159 && lo <= 160);  // 1600 Hz
+    OWFAX_CHECK(hi >= 239 && hi <= 240);  // 2400 Hz
+    // A 0.25-amplitude sine reads about -12 dB; far from the tones, much lower.
+    OWFAX_CHECK_NEAR(f.db[lo], -12.0, 1.6);
+    OWFAX_CHECK(f.db[50] < -60.0);
+    // Two 0.25 sines: RMS level of a 0.35 sine, -9 dBFS; peak at most 0.5 (-6 dBFS).
+    OWFAX_CHECK_NEAR(f.rms_dbfs, -9.0, 0.5);
+    OWFAX_CHECK(f.peak_dbfs <= -6.0 + 0.1 && f.peak_dbfs > -7.0);
+    OWFAX_CHECK(f.clipped == 0);
+}
+
+OWFAX_TEST(spectrum_counts_clipping) {
+    std::vector<float> s(12000, 1.0F);
+    owfax::dsp::SpectrumAnalyzer an(11025);
+    auto f = an.push(s.data(), s.size());
+    OWFAX_CHECK(f.has_value());
+    if (f) {
+        OWFAX_CHECK(f->clipped > 2000);
+        OWFAX_CHECK_NEAR(f->peak_dbfs, 0.0, 0.01);
+    }
 }

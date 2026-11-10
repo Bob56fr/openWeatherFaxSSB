@@ -282,7 +282,9 @@
   }
 
   function onMessage(m) {
-    if (m.type === 'status') {
+    if (m.type === 'spectrum') {
+      onSpectrum(m);
+    } else if (m.type === 'status') {
       const before = state.status;
       state.status = m.status;
       renderBadge();
@@ -482,12 +484,143 @@
     });
   }
 
+  // ------------------------------------------------------- diagnostic (UI-007)
+
+  const diag = { shift: 800, palette: null };
+
+  function palette() {
+    // Waterfall colours: dark blue → cyan → yellow → white.
+    if (diag.palette) return diag.palette;
+    const stops = [[11, 15, 20], [20, 40, 120], [0, 170, 200], [240, 220, 40], [255, 255, 255]];
+    const p = [];
+    for (let i = 0; i < 256; ++i) {
+      const x = (i / 255) * (stops.length - 1);
+      const k = Math.min(stops.length - 2, Math.floor(x));
+      const f = x - k;
+      p.push(stops[k].map(function (c, j) { return Math.round(c + (stops[k + 1][j] - c) * f); }));
+    }
+    diag.palette = p;
+    return p;
+  }
+
+  function hzToX(hz, maxHz, width) { return (hz / maxHz) * width; }
+
+  function onSpectrum(m) {
+    if (currentView() !== 'diag') return;
+    $('spectrum-wait').hidden = true;
+    const bin = atob(m.bands);
+    const n = bin.length;
+    const span = m.db_max - m.db_min;
+
+    // Level (UI-003 audio level check).
+    const pct = function (db) { return Math.max(0, Math.min(100, (db + 60) / 60 * 100)); };
+    const rms = $('meter-rms');
+    rms.style.width = pct(m.rms_dbfs) + '%';
+    $('meter-peak').style.left = 'calc(' + pct(m.peak_dbfs) + '% - 3px)';
+    let advice = 'diag.level_ok';
+    rms.className = '';
+    if (m.clipped > 0 || m.peak_dbfs > -1) { advice = 'diag.level_clip'; rms.className = 'high'; }
+    else if (m.rms_dbfs < -50) { advice = 'diag.level_low'; rms.className = 'low'; }
+    $('level-text').textContent = t('diag.level_value', {
+      rms: number(m.rms_dbfs, 1), peak: number(m.peak_dbfs, 1),
+    }) + ' — ' + t(advice);
+
+    // Spectrum.
+    const sc = $('spectrum');
+    const ctx = sc.getContext('2d');
+    const w = sc.width;
+    const h = sc.height;
+    ctx.fillStyle = '#0b0f14';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#2c3945';
+    ctx.fillStyle = '#9aabb8';
+    ctx.font = '11px sans-serif';
+    ctx.lineWidth = 1;
+    for (let hz = 500; hz < m.max_hz; hz += 500) {
+      const x = Math.round(hzToX(hz, m.max_hz, w)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      ctx.fillText(String(hz), x + 3, h - 4);
+    }
+    // Expected black, centre and white of the station (a mistuned SSB shows shifted peaks).
+    const marks = [[1900 - diag.shift / 2, '#7f8c99'], [1900, '#556270'], [1900 + diag.shift / 2, '#e4ebf0']];
+    ctx.setLineDash([4, 4]);
+    marks.forEach(function (mk) {
+      const x = Math.round(hzToX(mk[0], m.max_hz, w)) + 0.5;
+      ctx.strokeStyle = mk[1];
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#5cc27e';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < n; ++i) {
+      const x = (i + 0.5) / n * w;
+      const y = h - (bin.charCodeAt(i) / 255) * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#9aabb8';
+    ctx.fillText(m.db_max + ' dB', 4, 12);
+    ctx.fillText((m.db_min + span / 2) + ' dB', 4, h / 2);
+
+    // Waterfall: newest line on top.
+    const wf = $('waterfall');
+    const wctx = wf.getContext('2d');
+    wctx.drawImage(wf, 0, 0, wf.width, wf.height - 1, 0, 1, wf.width, wf.height - 1);
+    const row = wctx.createImageData(wf.width, 1);
+    const pal = palette();
+    for (let x = 0; x < wf.width; ++x) {
+      const c = pal[bin.charCodeAt(Math.min(n - 1, Math.floor(x / wf.width * n)))];
+      row.data[4 * x] = c[0];
+      row.data[4 * x + 1] = c[1];
+      row.data[4 * x + 2] = c[2];
+      row.data[4 * x + 3] = 255;
+    }
+    wctx.putImageData(row, 0, 0);
+  }
+
+  async function renderDiag() {
+    const table = $('diag-table');
+    let info = {};
+    let d = {};
+    try { info = await getJSON(API + '/info'); } catch (e) { /* offline */ }
+    try { d = await getJSON(API + '/diagnostics'); } catch (e) { /* older engine */ }
+    const host = d.host || {};
+    const input = d.input || {};
+    const opt = d.options || {};
+    if (opt.shift_hz) diag.shift = opt.shift_hz;
+    const s = state.status || {};
+    const gib = host.ram_bytes ? number(host.ram_bytes / 1073741824, 1) + ' Gio' : '?';
+    const rows = [
+      ['diag.version', (info.version || '?') + ' (' + (info.git_revision || '?') + ')'],
+      ['diag.os', (host.os || '?') + ', ' + (host.cpu_cores || '?') + ' ' + t('diag.cores') + ', ' + gib],
+      ['diag.tier', host.tier ? t('tier.' + host.tier) : '?'],
+      ['diag.input', (input.description || info.input || '?')],
+      ['diag.backends', (d.backends || []).join(', ')],
+      ['diag.devices', (d.inputs || []).map(function (x) { return x.uri; }).join('\n') || '—'],
+      ['diag.shift', (opt.shift_hz || '?') + ' Hz'],
+      ['diag.auto_start', t(opt.start_without_apt ? 'yes' : 'no')],
+      ['diag.overruns', String(s.overruns === undefined ? '?' : s.overruns) + ' / ' +
+        String(s.dropped_samples === undefined ? '?' : s.dropped_samples)],
+      ['diag.clients', String(s.live_clients === undefined ? '?' : s.live_clients)],
+    ];
+    table.textContent = '';
+    rows.forEach(function (r) {
+      const tr = el('tr');
+      tr.appendChild(el('th', '', t(r[0])));
+      const td = el('td', '', r[1]);
+      td.style.whiteSpace = 'pre-line';
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+  }
+
   // ------------------------------------------------------------------ routing
 
   function currentView() {
     const h = location.hash.replace(/^#/, '');
     if (h.indexOf('chart/') === 0) return 'chart';
-    return ['live', 'charts', 'schedule', 'settings'].indexOf(h) >= 0 ? h : 'live';
+    return ['live', 'charts', 'schedule', 'diag', 'settings'].indexOf(h) >= 0 ? h : 'live';
   }
 
   function route() {
@@ -501,6 +634,7 @@
     if (view === 'live') { renderLiveInfo(); renderLastChart(); fitLiveHeight(); }
     if (view === 'charts') renderCharts();
     if (view === 'chart') renderChart(decodeURIComponent(location.hash.slice('#chart/'.length)));
+    if (view === 'diag') { $('spectrum-wait').hidden = false; renderDiag(); }
     if (view === 'schedule') {
       renderSchedule();
       state.scheduleTimer = setInterval(renderSchedule, 30000);

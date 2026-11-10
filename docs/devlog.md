@@ -201,3 +201,19 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
 - À faire ensuite : paramétrage (rôle skipper, mot de passe, UI-002), assistant de
   première configuration (UI-003), page de diagnostic (UI-007), essais sur les
   navigateurs anciens réels (Chrome 109, Firefox ESR 115, Safari iOS 15).
+
+### Page de diagnostic (UI-007)
+
+- Analyseur de spectre dans le cœur (`dsp::SpectrumAnalyzer`) : FFT radix-2, fenêtre de
+  Hann, ~85 ms par transformée (12 Hz de résolution à 48 kHz), une trame toutes les
+  0,25 s ; niveau efficace et crête en dBFS (sinus pleine échelle = 0) et échantillons
+  écrêtés. Calculé seulement quand un écran est connecté (Pi Zero).
+- WebSocket : message `spectrum` (256 bandes 0 – 3 kHz, un octet par bande).
+  API : `/api/v1/diagnostics` (machine, niveau de matériel, entrées détectées,
+  options) et `/api/v1/journal` (512 derniers Kio, en téléchargement).
+- Interface : onglet Diagnostic avec indicateur de niveau et conseil (trop faible,
+  correct, écrêtage), spectre avec les repères noir / centre / blanc de la station,
+  chute d'eau, tableau système, bouton « Télécharger le journal ». Sur la capture DWD
+  rejouée : blanc à 2325 Hz pile sur son repère, niveau −13 dBFS « correct ».
+- `owfaxd` refuse de démarrer si `--web` ne contient pas d'index.html (cas vu le
+  10 novembre : dépôt du minix pas encore à jour, page « not found »).

@@ -35,6 +35,29 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+  /api/v1/diagnostics:
+    get:
+      summary: Host, hardware tier, audio inputs and options (UI-007)
+      responses:
+        "200":
+          description: |
+            `{"host": {"os", "cpu_cores", "ram_bytes", "tier"}, "input": {"uri",
+            "description", "sample_rate"}, "backends": [...], "inputs": [{"uri",
+            "description"}], "options": {"label", "shift_hz", "start_without_apt",
+            "enhanced"}}`
+          content:
+            application/json:
+              schema: { type: object }
+  /api/v1/journal:
+    get:
+      summary: The engine journal (last 512 KiB), for bug reports (UI-007)
+      responses:
+        "200":
+          description: Plain text, offered as a download
+          content:
+            text/plain:
+              schema: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/charts:
     get:
       summary: Charts received, newest first
@@ -130,7 +153,13 @@ paths:
           "pixels"}`, `pixels` = base64 of `width` grey levels (0 black … 255 white),
           about two lines per second;
         - `complete`: `{"type": "complete", "stem", "discarded", "lines"}`, the chart
-          files are written (or the transmission was discarded as a fragment).
+          files are written (or the transmission was discarded as a fragment);
+        - `spectrum`: `{"type": "spectrum", "max_hz", "db_min", "db_max", "bands",
+          "rms_dbfs", "peak_dbfs", "clipped"}`, four times per second while a client
+          is connected: input audio spectrum from 0 to `max_hz`, `bands` = base64 of
+          one byte per band (0 = `db_min`, 255 = `db_max`, dB relative to a
+          full-scale sine), level and clipped samples of the last 0.25 s (UI-007,
+          UI-003).
 
         A client too slow to keep up loses the oldest messages (more than 512
         waiting); it can always reload `live.png`. Messages sent by the client are

@@ -46,6 +46,7 @@ Détails : [docs/SPECIFICATION.md §16](docs/SPECIFICATION.md#16-feuille-de-rout
 ## Compiler le cœur
 
 Prérequis : CMake ≥ 3.18 et un compilateur C++17 (GCC ≥ 8, Clang ≥ 7, MSVC 2019+).
+Linux : `libasound2-dev` en plus pour l'entrée carte son ALSA (détectée automatiquement).
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -61,13 +62,24 @@ owfax-cli synth test.wav --offset 60 --ppm 250 --snr 15 --png source.png
 owfax-cli decode test.wav carte.png
 ```
 
+Réception en continu avec le moteur `owfaxd` (receive only : il ne pilote pas le TRX). Chaque carte donne `<stem>_live.png` (aperçu direct, réécrit pendant la réception), `<stem>.png` (brut), `<stem>_enh.png` (amélioré) et `<stem>.json` ; `status.json` est rafraîchi toutes les 5 s :
+
+```sh
+owfaxd --list-inputs
+owfaxd --input alsa:plughw:CARD=Device,DEV=0 --out cartes --label DDH3 --shift 850 --journal journal.log
+owfaxd --input wav:capture.wav --out cartes          # rejouer un enregistrement
+arecord -t raw -f S16_LE -c1 -r 48000 | owfaxd --input stdin --rate 48000 --out cartes
+```
+
 Avec CMake ≥ 3.21, des presets sont disponibles : `cmake --preset dev`, `msvc-x64`, `msvc-x86`, `linux-armhf`, `android-arm64`, `android-armv7` (voir [CMakePresets.json](CMakePresets.json)).
 
 ## Structure du dépôt
 
 ```
-core/        Bibliothèque C++17 portable : sources, DSP, décodeurs, planificateur, API
+core/        Bibliothèque C++17 portable : sources, DSP, décodeurs, moteur de réception
+io/          Entrées matérielles (ALSA ; WASAPI et Android à venir), hors du cœur
 apps/cli/    Outil en ligne de commande (développement, usage headless)
+apps/daemon/ owfaxd, moteur de réception en tâche de fond
 tests/       Tests unitaires (sans dépendance externe)
 cmake/       Modules CMake et toolchains de cross-compilation
 docs/        Spécification et documentation

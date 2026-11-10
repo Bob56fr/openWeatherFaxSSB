@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 #include "owfax/dsp/fir.hpp"
 #include "owfax/dsp/fm_demod.hpp"
@@ -719,6 +720,7 @@ struct StreamDecoder::Impl {
     enum class State { kIdle, kPhasing, kImage };
 
     DecodeOptions opt;
+    std::optional<DecodeOptions> enhanced_opt;
     dsp::FmDemodulator demod;
     double rate;
     double nominal;
@@ -745,8 +747,9 @@ struct StreamDecoder::Impl {
     double refined_clock_ppm = 0.0;
     std::vector<StreamEvent> events;
 
-    Impl(int sample_rate, const DecodeOptions& o)
+    Impl(int sample_rate, const DecodeOptions& o, std::optional<DecodeOptions> enh)
         : opt(o),
+          enhanced_opt(std::move(enh)),
           demod(make_demodulator(static_cast<double>(sample_rate))),
           rate(demod.output_rate()),
           nominal(rate * line_duration_s(o.lpm)),
@@ -892,14 +895,18 @@ struct StreamDecoder::Impl {
         const std::size_t keep =
             std::min(freq.size(), end_abs - origin + static_cast<std::size_t>(rate * 6.0));
         std::vector<float> tx(freq.begin(), freq.begin() + static_cast<std::ptrdiff_t>(keep));
-        try {
-            DecodeOptions o = opt;
+        auto run = [&](DecodeOptions o, std::vector<float> sig) {
             o.ioc = ioc;
-            auto final = std::make_shared<DecodeResult>(decode_frequency(std::move(tx), rate, o));
-            if (final->image.height > 0) e.final = std::move(final);
-        } catch (const std::exception&) {
-            // Too short or unusable: no final image.
-        }
+            try {
+                auto r = std::make_shared<DecodeResult>(decode_frequency(std::move(sig), rate, o));
+                if (r->image.height > 0) return std::shared_ptr<const DecodeResult>(std::move(r));
+            } catch (const std::exception&) {
+                // Too short or unusable: no image.
+            }
+            return std::shared_ptr<const DecodeResult>();
+        };
+        if (enhanced_opt) e.enhanced = run(*enhanced_opt, tx);
+        e.final = run(opt, std::move(tx));
         events.push_back(std::move(e));
         drop_before(end_abs);
         lum.clear();
@@ -962,9 +969,10 @@ struct StreamDecoder::Impl {
     }
 };
 
-StreamDecoder::StreamDecoder(int sample_rate, DecodeOptions options) {
+StreamDecoder::StreamDecoder(int sample_rate, DecodeOptions options,
+                             std::optional<DecodeOptions> enhanced) {
     if (sample_rate <= 0) throw std::invalid_argument("StreamDecoder: invalid sample rate");
-    impl_ = std::make_unique<Impl>(sample_rate, options);
+    impl_ = std::make_unique<Impl>(sample_rate, options, std::move(enhanced));
 }
 
 StreamDecoder::~StreamDecoder() = default;

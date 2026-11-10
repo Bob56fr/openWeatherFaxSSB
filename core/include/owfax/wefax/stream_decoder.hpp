@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "owfax/wefax/decoder.hpp"
@@ -38,11 +39,17 @@ struct StreamEvent {
     std::vector<std::uint8_t> pixels;  ///< kLine: pixels_per_line(ioc) values.
     float quality = 0.0F;              ///< kLine: 1 = clean … 0 = unusable.
     std::shared_ptr<const DecodeResult> final;  ///< kComplete: final image (may be null).
+    /// kComplete: same transmission decoded with the enhancement options (may be null;
+    /// only when enhanced options were given to the decoder). Spec UI-008.
+    std::shared_ptr<const DecodeResult> enhanced;
 };
 
 class StreamDecoder {
 public:
-    StreamDecoder(int sample_rate, DecodeOptions options = {});
+    /// `enhanced`: if set, each transmission is also decoded with these options at the
+    /// end (before/after comparison, spec UI-009). Costs one more offline decode.
+    StreamDecoder(int sample_rate, DecodeOptions options = {},
+                  std::optional<DecodeOptions> enhanced = std::nullopt);
     ~StreamDecoder();
     StreamDecoder(const StreamDecoder&) = delete;
     StreamDecoder& operator=(const StreamDecoder&) = delete;

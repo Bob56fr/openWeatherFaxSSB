@@ -8,10 +8,12 @@ configure_file(
 
 add_library(owfax_core
   src/audio/resample.cpp
+  src/audio/source.cpp
   src/audio/wav.cpp
   src/capabilities.cpp
   src/dsp/fir.cpp
   src/dsp/fm_demod.cpp
+  src/engine/receiver.cpp
   src/image/png_writer.cpp
   src/wefax/decoder.cpp
   src/wefax/modulator.cpp

@@ -24,6 +24,13 @@ endif()
 set(OWFAX_SOURCE_URL "${PROJECT_HOMEPAGE_URL}" CACHE STRING "Public URL of the source repository")
 
 option(OWFAX_BUILD_CLI "Build the owfax-cli command line tool" ON)
+# The Android app embeds the core through JNI; the daemon is for desktop and Pi.
+if(ANDROID)
+  set(_owfax_daemon_default OFF)
+else()
+  set(_owfax_daemon_default ON)
+endif()
+option(OWFAX_BUILD_DAEMON "Build the owfaxd reception engine" ${_owfax_daemon_default})
 # PROJECT_IS_TOP_LEVEL needs CMake 3.21; compute it for 3.18.
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(_owfax_top_level ON)
@@ -38,9 +45,13 @@ include(OwfaxCompilerOptions)
 include(OwfaxGitInfo)
 
 add_subdirectory(core)
+add_subdirectory(io)
 
 if(OWFAX_BUILD_CLI)
   add_subdirectory(apps/cli)
+endif()
+if(OWFAX_BUILD_DAEMON)
+  add_subdirectory(apps/daemon)
 endif()
 
 if(OWFAX_BUILD_TESTS)

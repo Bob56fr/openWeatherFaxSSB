@@ -7,6 +7,8 @@
 function(owfax_set_target_options target)
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /Zc:__cplusplus)
+    # Portable standard functions (getenv, fopen...) are flagged C4996 by MSVC only.
+    target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     if(OWFAX_WARNINGS_AS_ERRORS)
       target_compile_options(${target} PRIVATE /WX)
     endif()

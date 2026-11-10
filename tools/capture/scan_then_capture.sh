@@ -20,8 +20,21 @@ log() { echo "$(date -u '+%Y-%m-%d %H:%MZ')  $*" | tee -a "$J"; }
 
 log "$LABEL : balayage ${DWELL} s sur $* kHz"
 SCAN=$("$HERE/ic7300_scan.sh" "$DWELL" "$@" 2>&1 | tee /dev/stderr)
-BEST=$(echo "$SCAN" | awk '/score=/ { split($3, a, "="); if (a[2] > best) { best = a[2]; f = $1 } }
-                           END { if (f != "") print f, best }')
+# Rank by carrier presence and quality (in-band energy x FM consistency), NOT by the
+# image score: stations send an idle carrier before a chart (DWD, 2026-11-10 04:24
+# UTC: the scan ran 6 min before the 04:30 chart and the session was wrongly skipped).
+# Noise alone gives ~0.25, a station (chart or idle carrier) ~0.8-1.
+BEST=$(echo "$SCAN" | awk '/band=/ {
+          b = 0; m = 0
+          for (i = 1; i <= NF; i++) {
+            split($i, kv, "=")
+            if (kv[1] == "band") b = kv[2]
+            if (kv[1] == "fm_in_range") m = kv[2]
+          }
+          p = b * m
+          if (p > best) { best = p; f = $1 }
+        }
+        END { if (f != "" && best >= 0.5) print f, best }')
 if [[ -z $BEST ]]; then
   log "$LABEL : aucun signal exploitable, pas de capture"
   exit 1

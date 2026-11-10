@@ -129,19 +129,33 @@ def page():
     # "_live" = live preview from the streaming decoder. All variants are kept so the
     # skipper can check what an enhancement changed (before/after).
     decoded = os.path.join(corpus, "decoded")
-    pngs = [p for p in glob.glob(os.path.join(decoded, "*.png"))
-            if not p.endswith(("_enh.png", "_live.png"))]
-    pngs = sorted(pngs, key=os.path.getmtime, reverse=True)[:12]
+    status = os.path.join(decoded, "status.json")
+    if os.path.isfile(status):
+        parts.append("<h2>Moteur owfaxd</h2><pre>" +
+                     html.escape("".join(tail(status, 20))) + "</pre>")
+    # One entry per chart stem; a chart still being received only has its live preview
+    # (written by owfaxd every 50 lines).
+    stems = {}
+    for p in glob.glob(os.path.join(decoded, "*.png")):
+        stem = os.path.basename(p)[:-4]
+        for suffix in ("_enh", "_live"):
+            if stem.endswith(suffix):
+                stem = stem[:-len(suffix)]
+        stems[stem] = max(stems.get(stem, 0), os.path.getmtime(p))
+    order = sorted(stems, key=stems.get, reverse=True)[:12]
     parts.append("<h2>Cartes décodées</h2>")
-    if not pngs:
+    if not order:
         parts.append("<p class=muted>Aucune pour l'instant.</p>")
-    for i, p in enumerate(pngs):
-        name = os.path.basename(p)
-        variants = [("Brut (avant)", name)]
-        for suffix, label in (("_enh.png", "Amélioré (après)"), ("_live.png", "Aperçu direct")):
-            v = name[:-4] + suffix
+    for i, stem in enumerate(order):
+        name = stem + ".png"
+        variants = []
+        for suffix, label in ((".png", "Brut (avant)"), ("_enh.png", "Amélioré (après)"),
+                              ("_live.png", "Aperçu direct")):
+            v = stem + suffix
             if os.path.isfile(os.path.join(decoded, v)):
                 variants.append((label, v))
+        if not os.path.isfile(os.path.join(decoded, name)):
+            name = stem + " — réception en cours"
         urls = ["/img/" + urllib.parse.quote(v) for _, v in variants]
         buttons = "".join(
             f'<button type=button class="{"on" if k == 0 else ""}" data-fig="f{i}" data-src="{u}">'
@@ -193,6 +207,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     body = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "no-store")  # live preview changes
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)

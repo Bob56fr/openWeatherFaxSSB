@@ -231,6 +231,7 @@ struct LineFit {
     double origin;      // sample position of the centre of phasing line 0
     double period;      // samples per line
     std::size_t lines;  // phasing lines (index of the first image line)
+    std::size_t first;  // index of the first phasing line found
 };
 
 /// Follows the phasing pulse line by line and fits centre(k) = origin + k × period.
@@ -316,7 +317,7 @@ std::optional<LineFit> track_phasing(const std::vector<float>& lum, double origi
             keep[i] = std::fabs(centers[i] - (intercept + slope * ks[i])) <= tolerance;
         }
     }
-    return LineFit{intercept, slope, last_hit + 1};
+    return LineFit{intercept, slope, last_hit + 1, static_cast<std::size_t>(ks.front())};
 }
 
 double sample_at(const std::vector<float>& v, double x) {
@@ -1104,17 +1105,17 @@ struct StreamDecoder::Impl {
             to_d(end()) >= to_d(resume_from) + rate * (kPhasingWindowS + 10.0)) {
             const std::size_t at = resume_from;
             resume_from = 0;
-            if (phasing_after(at)) {
+            if (const auto phasing = phasing_after(at)) {
                 // A new chart whose APT stop and start were both lost.
                 complete(gap_fax_end);
-                begin(at, at, ioc, false, true);
+                begin(*phasing, *phasing, ioc, false, true);
             }
         }
     }
 
-    /// True if phasing lines (one pulse per line on a uniform background) start within
-    /// a few seconds after absolute index `from`, with the current line period.
-    bool phasing_after(std::size_t from) const {
+    /// Absolute start of phasing lines (one pulse per line on a uniform background)
+    /// found within a few seconds after absolute index `from`, with the current period.
+    std::optional<std::size_t> phasing_after(std::size_t from) const {
         const auto step = static_cast<std::size_t>(rate * 5.0);
         const auto window = static_cast<std::size_t>(rate * kPhasingWindowS);
         for (std::size_t k = 0; k < 3; ++k) {
@@ -1123,11 +1124,16 @@ struct StreamDecoder::Impl {
             const Pulse pulse = find_pulse(fold(lum, a, a + window, period, kCoarseBins));
             if (std::fabs(pulse.contrast) <= kMinPulseContrast) continue;
             const double org = to_d(a) + pulse.center_fraction * period;
-            if (track_phasing(lum, org, period, pulse.contrast > 0.0, to_d(lum.size()))) {
-                return true;
+            if (const auto fit =
+                    track_phasing(lum, org, period, pulse.contrast > 0.0, to_d(lum.size()))) {
+                // Half a line before the first pulse: the chart starts on its phasing, so
+                // that no noise from the gap biases the clock estimate (real case: a
+                // 200-line chart came out 9 ppm slanted when started 10 s early).
+                const double start = fit->origin + (to_d(fit->first) - 0.5) * fit->period;
+                return origin + static_cast<std::size_t>(std::max(to_d(a), start));
             }
         }
-        return false;
+        return std::nullopt;
     }
 
     void push(const float* samples, std::size_t count) {

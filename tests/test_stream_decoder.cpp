@@ -66,15 +66,32 @@ void feed(StreamDecoder& dec, const owfax::audio::AudioBuffer& audio, Collected&
     }
 }
 
-/// Band-limited-ish receiver noise (what an SSB receiver gives between charts).
+/// Receiver noise between charts: an SSB receiver passes ~300-2700 Hz, so the noise
+/// is band-pass around the 1900 Hz WEFAX centre (a low-pass noise would demodulate to
+/// a mostly black signal with spikes, which looks like phasing pulses).
 std::vector<float> noise(int rate, double seconds, std::uint32_t seed) {
+    // mt19937 output is specified by the standard, distributions are not: build the
+    // noise from raw draws so that every compiler sees the same samples.
     std::mt19937 rng(seed);
-    std::normal_distribution<float> n(0.0F, 0.25F);
+    // RBJ band-pass biquad, centre 1900 Hz, Q 0.8 (about 2.4 kHz wide).
+    const double w0 = 2.0 * 3.14159265358979 * 1900.0 / rate;
+    const double alpha = std::sin(w0) / (2.0 * 0.8);
+    const double a0 = 1.0 + alpha;
+    const double b0 = alpha / a0;
+    const double a1 = -2.0 * std::cos(w0) / a0;
+    const double a2 = (1.0 - alpha) / a0;
+    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
     std::vector<float> out(static_cast<std::size_t>(rate * seconds));
-    float lp = 0.0F;
     for (auto& v : out) {
-        lp = 0.6F * lp + 0.4F * n(rng);
-        v = lp;
+        double sum = 0.0;
+        for (int k = 0; k < 4; ++k) sum += static_cast<double>(rng()) / 4294967296.0;
+        const double x = (sum - 2.0) * 0.6;
+        const double y = b0 * x - b0 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+        v = static_cast<float>(y);
     }
     return out;
 }

@@ -220,3 +220,28 @@ OWFAX_TEST(click_suppression_keeps_clean_image) {
     const Outcome o = run(mod, fixed);
     OWFAX_CHECK(o.correlation > 0.99);
 }
+
+OWFAX_TEST(decode_all_ignores_idle_carrier) {
+    // DWD keeps a white carrier between charts: no transmission must be reported.
+    owfax::GrayImage blank(1810, 400, 255);
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    mod.start_tone_s = 0.0;
+    mod.phasing_s = 0.0;
+    mod.stop_tone_s = 0.0;
+    mod.snr_db = 25.0;
+    const auto results = decode_all(modulate(blank, mod));
+    for (const auto& r : results) {
+        double m = 0.0;
+        double m2 = 0.0;
+        for (auto px : r.image.pixels) {
+            m += px;
+            m2 += static_cast<double>(px) * px;
+        }
+        const double n = static_cast<double>(r.image.pixels.size());
+        m /= n;
+        std::printf("    unexpected segment: %zu lines, mean %.1f, std %.1f\n", r.image.height, m,
+                    std::sqrt(m2 / n - m * m));
+    }
+    OWFAX_CHECK(results.empty());
+}

@@ -37,6 +37,8 @@ constexpr std::size_t kCoarseBins = 400;
 constexpr std::size_t kMinPhasingLinesForFit = 8;
 constexpr std::size_t kRefineMinLines = 300;
 constexpr std::size_t kRefineMaxLines = 800;
+constexpr double kMinContentStd = 12.0;        // pixel std (0-255) of a textured line
+constexpr double kMinTexturedFraction = 0.10;  // below this share of textured lines: blank
 
 struct Run {
     std::size_t begin;  // first sample
@@ -553,6 +555,26 @@ std::vector<DecodeResult> decode_all(const audio::AudioBuffer& audio, const Deco
         try {
             DecodeResult r = decode(part, opt);
             if (r.image.height < 20) continue;
+            // Reject segments without content, e.g. the idle white carrier the DWD keeps
+            // between charts (real capture, 2026-11-09 22:11-22:45 UTC).
+            // A chart has many lines with internal texture; a carrier (white or black)
+            // gives uniform lines whatever its level.
+            std::size_t textured = 0;
+            for (std::size_t y = 0; y < r.image.height; ++y) {
+                double sum = 0.0;
+                double sum2 = 0.0;
+                for (std::size_t x = 0; x < r.image.width; ++x) {
+                    const double px = r.image.at(x, y);
+                    sum += px;
+                    sum2 += px * px;
+                }
+                const double w = to_d(r.image.width);
+                const double mean = sum / w;
+                if (std::sqrt(std::max(0.0, sum2 / w - mean * mean)) >= kMinContentStd) {
+                    ++textured;
+                }
+            }
+            if (to_d(textured) < kMinTexturedFraction * to_d(r.image.height)) continue;
             const double offset_s = to_d(a) / in_rate;
             if (r.report.apt_start_s >= 0.0) r.report.apt_start_s += offset_s;
             r.report.image_start_s += offset_s;

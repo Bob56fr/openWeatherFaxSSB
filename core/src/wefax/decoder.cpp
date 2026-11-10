@@ -13,6 +13,8 @@
 
 #include "owfax/wefax/decoder.hpp"
 
+#include "owfax/wefax/stream_decoder.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -368,23 +370,45 @@ std::size_t suppress_clicks(std::vector<float>& f, double black, double white) {
     return repaired;
 }
 
+/// Renders one line of luminance samples starting at sample position `start`.
+void render_line(const std::vector<float>& lum, double start, double period, std::size_t width,
+                 std::uint8_t* out) {
+    const double px = period / to_d(width);
+    for (std::size_t x = 0; x < width; ++x) {
+        const double c = start + (to_d(x) + 0.5) * px;
+        const double v =
+            (sample_at(lum, c - 0.25 * px) + sample_at(lum, c) + sample_at(lum, c + 0.25 * px)) /
+            3.0;
+        out[x] = static_cast<std::uint8_t>(std::lround(v * 255.0));
+    }
+}
+
 double ppm_of(double period, double nominal) {
     return (period / nominal - 1.0) * 1e6;
 }
 
 }  // namespace
 
+dsp::FmDemodulator make_demodulator(double in_rate) {
+    const auto decim = std::max<std::size_t>(1, static_cast<std::size_t>(in_rate / kWorkingRate));
+    return dsp::FmDemodulator(in_rate, kCenterHz, kDemodCutoffHz, decim);
+}
+
 DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
     if (audio.sample_rate <= 0) throw std::invalid_argument("decode: invalid sample rate");
-    const auto in_rate = static_cast<double>(audio.sample_rate);
-    const auto decim = std::max<std::size_t>(1, static_cast<std::size_t>(in_rate / kWorkingRate));
 
     // 1. Instantaneous frequency.
-    dsp::FmDemodulator demod(in_rate, kCenterHz, kDemodCutoffHz, decim);
+    auto demod = make_demodulator(static_cast<double>(audio.sample_rate));
     std::vector<float> sig;
-    sig.reserve(audio.samples.size() / decim + 1);
+    sig.reserve(static_cast<std::size_t>(to_d(audio.samples.size()) * demod.output_rate() /
+                                         static_cast<double>(audio.sample_rate)) +
+                1);
     demod.process(audio.samples.data(), audio.samples.size(), sig);
-    const double rate = demod.output_rate();
+    return decode_frequency(std::move(sig), demod.output_rate(), opt);
+}
+
+DecodeResult decode_frequency(std::vector<float> sig, double rate, const DecodeOptions& opt) {
+    if (rate <= 0.0) throw std::invalid_argument("decode: invalid rate");
     const double nominal = rate * line_duration_s(opt.lpm);
     if (to_d(sig.size()) < 10.0 * nominal) throw std::runtime_error("decode: recording too short");
 
@@ -484,16 +508,9 @@ DecodeResult decode(const audio::AudioBuffer& audio, const DecodeOptions& opt) {
     const auto width = static_cast<std::size_t>(pixels_per_line(rep.ioc));
     result.image = GrayImage(width, lines, 0);
     rep.line_quality.resize(lines);
-    const double px = period / to_d(width);
     for (std::size_t y = 0; y < lines; ++y) {
         const double s = first_line + to_d(y) * period;
-        for (std::size_t x = 0; x < width; ++x) {
-            const double c = s + (to_d(x) + 0.5) * px;
-            const double v = (sample_at(sig, c - 0.25 * px) + sample_at(sig, c) +
-                              sample_at(sig, c + 0.25 * px)) /
-                             3.0;
-            result.image.at(x, y) = static_cast<std::uint8_t>(std::lround(v * 255.0));
-        }
+        render_line(sig, s, period, width, &result.image.at(0, y));
         const auto a = static_cast<std::size_t>(std::max(0.0, s));
         const auto b = std::min(sig.size(), static_cast<std::size_t>(s + period));
         std::size_t good = 0;
@@ -588,6 +605,328 @@ std::vector<DecodeResult> decode_all(const audio::AudioBuffer& audio, const Deco
         }
     }
     return results;
+}
+
+// ---------------------------------------------------------------------------------
+// Streaming decoder (DSP-007)
+// ---------------------------------------------------------------------------------
+
+namespace {
+
+/// Incremental version of find_tone_run(): fed one 0.25 s block at a time.
+struct ToneTracker {
+    double tone_hz = 0.0;
+    std::size_t min_hits = 0;
+    std::size_t hits = 0;
+    std::size_t gap = 0;
+    std::size_t start = 0;  // absolute sample index
+    std::size_t end = 0;
+
+    /// Returns a completed run (absolute sample indices) when one ends.
+    std::optional<Run> feed(bool hit, std::size_t pos, std::size_t block) {
+        if (hit) {
+            if (hits == 0) start = pos;
+            ++hits;
+            gap = 0;
+            end = pos + block;
+        } else if (hits > 0 && ++gap > 1) {
+            const Run run{start, end};
+            const bool ok = hits >= min_hits;
+            hits = 0;
+            gap = 0;
+            if (ok) return run;
+        }
+        return std::nullopt;
+    }
+    void reset() { hits = gap = 0; }
+};
+
+constexpr double kIdleKeepS = 12.0;  // history kept while waiting for a start
+constexpr double kMaxTransmissionS = 30.0 * 60.0;
+constexpr double kPhasingRetryS = 2.0;
+// Live lines lag the input by this much, so that the APT stop tone (confirmed after
+// 1.5 s + one 0.25 s block) is detected before any line inside it is shown.
+constexpr double kLiveDelayS = 2.5;
+
+}  // namespace
+
+struct StreamDecoder::Impl {
+    enum class State { kIdle, kPhasing, kImage };
+
+    DecodeOptions opt;
+    dsp::FmDemodulator demod;
+    double rate;
+    double nominal;
+    std::size_t block;
+    State state = State::kIdle;
+
+    std::vector<float> freq;  // instantaneous frequency, freq[0] = absolute index `origin`
+    std::vector<float> lum;   // luminance, same indexing (once levels are known)
+    std::size_t origin = 0;
+    std::size_t scanned = 0;  // absolute index of the next tone block to analyse
+
+    ToneTracker start576{apt_start_hz(Ioc::k576), kStartToneMinBlocks};
+    ToneTracker start288{apt_start_hz(Ioc::k288), kStartToneMinBlocks};
+    ToneTracker stop{kAptStopHz, kStopToneMinBlocks};
+
+    Ioc ioc = Ioc::k576;
+    std::size_t tx_start = 0;      // absolute
+    std::size_t phasing_from = 0;  // absolute
+    double next_attempt = 0.0;     // absolute index of the next phasing analysis
+    Levels levels;
+    double first_line = 0.0;  // absolute
+    double period = 0.0;
+    std::size_t next_line = 0;
+    double refined_clock_ppm = 0.0;
+    std::vector<StreamEvent> events;
+
+    Impl(int sample_rate, const DecodeOptions& o)
+        : opt(o),
+          demod(make_demodulator(static_cast<double>(sample_rate))),
+          rate(demod.output_rate()),
+          nominal(rate * line_duration_s(o.lpm)),
+          block(static_cast<std::size_t>(rate * kToneBlockS)) {}
+
+    std::size_t end() const { return origin + freq.size(); }
+    double seconds(double abs_index) const { return abs_index / rate; }
+
+    void drop_before(std::size_t abs_index) {
+        if (abs_index <= origin) return;
+        const std::size_t drop = std::min(freq.size(), abs_index - origin);
+        freq.erase(freq.begin(), freq.begin() + static_cast<std::ptrdiff_t>(drop));
+        if (!lum.empty()) {
+            lum.erase(lum.begin(),
+                      lum.begin() + static_cast<std::ptrdiff_t>(std::min(drop, lum.size())));
+        }
+        origin += drop;
+    }
+
+    void begin(std::size_t abs_start, std::size_t abs_phasing, Ioc which, bool from_tone) {
+        drop_before(abs_start);
+        state = State::kPhasing;
+        ioc = opt.ioc.value_or(which);
+        tx_start = abs_start;
+        phasing_from = abs_phasing;
+        next_attempt = to_d(phasing_from) + rate * (kPhasingWindowS + 1.0);
+        stop.reset();
+        StreamEvent e;
+        e.kind = StreamEvent::Kind::kStart;
+        e.time_s = seconds(to_d(abs_start));
+        e.ioc = ioc;
+        e.apt_start = from_tone;
+        events.push_back(std::move(e));
+    }
+
+    void update_lum(std::size_t from_rel) {
+        lum.resize(freq.size());
+        const double span = levels.white - levels.black;
+        for (std::size_t i = from_rel; i < freq.size(); ++i) {
+            lum[i] = static_cast<float>((static_cast<double>(freq[i]) - levels.black) / span);
+        }
+    }
+
+    void try_lock() {
+        if (to_d(end()) < next_attempt) return;
+        const std::size_t ph_from = phasing_from - origin;
+        const std::size_t avail = freq.size();
+        const std::size_t ph_to =
+            std::min(avail, ph_from + static_cast<std::size_t>(rate * kPhasingWindowS));
+        levels = estimate_levels(freq, ph_from, avail, opt.shift_hz);
+        update_lum(0);
+
+        double ppm = opt.clock_ppm.value_or(0.0);
+        if (!opt.clock_ppm) {
+            ppm = best_ppm(lum, ph_from, ph_to, nominal, 0.0, opt.max_clock_ppm, 20.0, kCoarseBins);
+        }
+        double per = nominal * (1.0 + ppm * 1e-6);
+        const Pulse pulse = find_pulse(fold(lum, ph_from, ph_to, per, kCoarseBins));
+        bool locked = false;
+        bool phasing_found = false;
+        double first = to_d(ph_from);
+        if (std::fabs(pulse.contrast) > kMinPulseContrast) {
+            const double org = to_d(ph_from) + pulse.center_fraction * per;
+            if (const auto fit = track_phasing(lum, org, per, pulse.contrast > 0.0, to_d(avail))) {
+                const double fit_end = fit->origin + to_d(fit->lines) * fit->period;
+                // Phasing is over when at least 3 image lines follow the last pulse.
+                if (fit_end + 3.0 * fit->period < to_d(avail)) {
+                    if (!opt.clock_ppm) per = fit->period;
+                    first = fit_end;
+                    locked = true;
+                    phasing_found = true;
+                }
+            }
+        }
+        const bool give_up = to_d(avail - ph_from) > rate * kMaxPhasingS;
+        if (!locked && !give_up) {
+            next_attempt = to_d(end()) + rate * kPhasingRetryS;
+            return;
+        }
+        period = per;
+        first_line = to_d(origin) + first;
+        next_line = 0;
+        state = State::kImage;
+        StreamEvent e;
+        e.kind = StreamEvent::Kind::kLocked;
+        e.time_s = seconds(first_line);
+        e.clock_ppm = (period / nominal - 1.0) * 1e6;
+        e.tuning_offset_hz = (levels.black + levels.white) / 2.0 - kCenterHz;
+        e.phasing_found = phasing_found;
+        events.push_back(std::move(e));
+    }
+
+    /// Progressive clock refinement on the lines already received (same method as the
+    /// offline pipeline). The current line keeps its position, so the live image has no
+    /// break; following lines use the refined period. Real case: GYA phasing estimate
+    /// -61 ppm, image refinement -43 ppm (~40 px of slant avoided over a chart).
+    void refine_period() {
+        if (opt.clock_ppm) return;
+        const double from = first_line - to_d(origin);
+        const double to = from + to_d(next_line) * period;
+        if (from < 0.0) return;
+        const auto a = static_cast<std::size_t>(from);
+        const auto b = std::min(lum.size(), static_cast<std::size_t>(to));
+        double ppm = (period / nominal - 1.0) * 1e6;
+        ppm = best_ppm(lum, a, b, nominal, ppm, 20.0, 1.0, 0);
+        ppm = best_ppm(lum, a, b, nominal, ppm, 1.0, 0.1, 0);
+        const double current = first_line + to_d(next_line) * period;
+        period = nominal * (1.0 + ppm * 1e-6);
+        first_line = current - to_d(next_line) * period;
+        refined_clock_ppm = ppm;
+    }
+
+    void emit_lines(std::size_t limit_abs) {
+        const auto width = static_cast<std::size_t>(pixels_per_line(ioc));
+        while (first_line + to_d(next_line + 1) * period + 2.0 <= to_d(limit_abs)) {
+            if (next_line == kRefineMinLines || next_line == 2 * kRefineMinLines) refine_period();
+            const double s_abs = first_line + to_d(next_line) * period;
+            const double s_rel = s_abs - to_d(origin);
+            StreamEvent e;
+            e.kind = StreamEvent::Kind::kLine;
+            e.time_s = seconds(s_abs);
+            e.line_index = next_line;
+            e.pixels.resize(width);
+            render_line(lum, s_rel, period, width, e.pixels.data());
+            const auto a = static_cast<std::size_t>(std::max(0.0, s_rel));
+            const auto b = std::min(lum.size(), static_cast<std::size_t>(s_rel + period));
+            std::size_t good = 0;
+            for (std::size_t i = a; i < b; ++i) {
+                if (lum[i] > -0.3F && lum[i] < 1.3F) ++good;
+            }
+            e.quality = b > a ? static_cast<float>(to_d(good) / to_d(b - a)) : 0.0F;
+            events.push_back(std::move(e));
+            ++next_line;
+        }
+    }
+
+    void complete(std::size_t end_abs) {
+        if (state == State::kImage) emit_lines(std::min(end_abs, end()));
+        StreamEvent e;
+        e.kind = StreamEvent::Kind::kComplete;
+        e.time_s = seconds(to_d(end_abs));
+        // Final image: full offline pipeline on the transmission, stop tone included.
+        const std::size_t keep =
+            std::min(freq.size(), end_abs - origin + static_cast<std::size_t>(rate * 6.0));
+        std::vector<float> tx(freq.begin(), freq.begin() + static_cast<std::ptrdiff_t>(keep));
+        try {
+            DecodeOptions o = opt;
+            o.ioc = ioc;
+            auto final = std::make_shared<DecodeResult>(decode_frequency(std::move(tx), rate, o));
+            if (final->image.height > 0) e.final = std::move(final);
+        } catch (const std::exception&) {
+            // Too short or unusable: no final image.
+        }
+        events.push_back(std::move(e));
+        drop_before(end_abs);
+        lum.clear();
+        state = State::kIdle;
+        start576.reset();
+        start288.reset();
+        stop.reset();
+    }
+
+    /// Analyses new 0.25 s blocks for APT tones. Returns false if the buffer was
+    /// rearranged (transmission completed) and scanning must resume later.
+    void scan_tones() {
+        while (scanned + block <= end()) {
+            if (scanned < origin) scanned = origin;
+            if (scanned + block > end()) break;
+            const float* p = &freq[scanned - origin];
+            const std::size_t pos = scanned;
+            scanned += block;
+            if (state == State::kIdle) {
+                const bool h576 =
+                    dsp::tone_ratio(p, block, start576.tone_hz, rate) > kToneThreshold;
+                const bool h288 =
+                    dsp::tone_ratio(p, block, start288.tone_hz, rate) > kToneThreshold;
+                const auto r576 = start576.feed(h576, pos, block);
+                const auto r288 = start288.feed(h288, pos, block);
+                const bool use576 = !opt.ioc || *opt.ioc == Ioc::k576;
+                const bool use288 = !opt.ioc || *opt.ioc == Ioc::k288;
+                if (r576 && use576) {
+                    begin(r576->begin, r576->end, Ioc::k576, true);
+                } else if (r288 && use288) {
+                    begin(r288->begin, r288->end, Ioc::k288, true);
+                }
+            } else {
+                const bool hit = dsp::tone_ratio(p, block, kAptStopHz, rate) > kToneThreshold;
+                stop.feed(hit, pos, block);
+                // React as soon as the stop tone is confirmed (1.5 s), not at its end:
+                // live lines are delayed by kLiveDelayS so none falls inside the tone.
+                if (stop.hits >= stop.min_hits && stop.start > phasing_from) {
+                    complete(stop.start);
+                }
+            }
+        }
+    }
+
+    void push(const float* samples, std::size_t count) {
+        const std::size_t before = freq.size();
+        demod.process(samples, count, freq);
+        if (state == State::kImage) update_lum(before);
+        scan_tones();
+        if (state == State::kPhasing) try_lock();
+        if (state == State::kImage) {
+            const auto delay = static_cast<std::size_t>(rate * kLiveDelayS);
+            if (end() > delay) emit_lines(end() - delay);
+            if (to_d(end() - tx_start) > rate * kMaxTransmissionS) complete(end());
+        }
+        if (state == State::kIdle) {
+            const auto keep = static_cast<std::size_t>(rate * kIdleKeepS);
+            if (freq.size() > 2 * keep) drop_before(end() - keep);
+        }
+    }
+};
+
+StreamDecoder::StreamDecoder(int sample_rate, DecodeOptions options) {
+    if (sample_rate <= 0) throw std::invalid_argument("StreamDecoder: invalid sample rate");
+    impl_ = std::make_unique<Impl>(sample_rate, options);
+}
+
+StreamDecoder::~StreamDecoder() = default;
+
+void StreamDecoder::push(const float* samples, std::size_t count) {
+    impl_->push(samples, count);
+}
+
+std::vector<StreamEvent> StreamDecoder::take_events() {
+    std::vector<StreamEvent> out;
+    out.swap(impl_->events);
+    return out;
+}
+
+void StreamDecoder::force_start() {
+    if (impl_->state != Impl::State::kIdle) return;
+    const std::size_t now = impl_->end();
+    impl_->begin(now, now, impl_->opt.ioc.value_or(Ioc::k576), false);
+}
+
+void StreamDecoder::force_stop() {
+    if (impl_->state == Impl::State::kIdle) return;
+    impl_->complete(impl_->end());
+}
+
+bool StreamDecoder::receiving() const noexcept {
+    return impl_->state != Impl::State::kIdle;
 }
 
 }  // namespace owfax::wefax

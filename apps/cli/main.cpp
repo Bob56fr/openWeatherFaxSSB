@@ -18,6 +18,7 @@
 #include "owfax/wefax/decoder.hpp"
 #include "owfax/wefax/modulator.hpp"
 #include "owfax/wefax/probe.hpp"
+#include "owfax/wefax/stream_decoder.hpp"
 
 namespace {
 
@@ -53,7 +54,11 @@ void print_usage() {
         "\n"
         "  cut <in.wav> <out.wav>        Extract and/or resample a recording\n"
         "      --from <s> --to <s>       Time range (default: whole file)\n"
-        "      --rate <Hz>               Output sample rate (default: unchanged)\n");
+        "      --rate <Hz>               Output sample rate (default: unchanged)\n"
+        "\n"
+        "  stream <in.wav> <prefix>      Replay a recording through the streaming decoder:\n"
+        "                                live image <prefix>_NN_live.png, final <prefix>_NN.png\n"
+        "                                (decode options apply)\n");
 }
 
 int cmd_probe(const Args& args) {
@@ -148,6 +153,64 @@ void print_report(const owfax::wefax::DecodeResult& result) {
     // Machine-readable: whole transmission incl. APT tones, for corpus extraction.
     const double seg_start = r.apt_start_found ? r.apt_start_s : r.image_start_s;
     std::printf("Segment:        %.1f %.1f\n", seg_start, r.image_end_s + 10.0);
+}
+
+owfax::wefax::DecodeOptions take_decode_options(Args& args);
+owfax::audio::AudioBuffer load(const std::string& path);
+
+int cmd_stream(Args args) {
+    const auto opt = take_decode_options(args);
+    if (args.size() != 2) {
+        print_usage();
+        return 2;
+    }
+    const auto audio = load(args[0]);
+    owfax::wefax::StreamDecoder dec(audio.sample_rate, opt);
+    owfax::GrayImage live;
+    int tx = 0;
+    std::size_t lines = 0;
+    const std::size_t chunk = static_cast<std::size_t>(audio.sample_rate) / 10;  // 100 ms
+    auto name = [&](const char* suffix) {
+        char buf[48];
+        std::snprintf(buf, sizeof(buf), "_%02d%s.png", tx, suffix);
+        return args[1] + buf;
+    };
+    for (std::size_t pos = 0; pos < audio.samples.size(); pos += chunk) {
+        dec.push(&audio.samples[pos], std::min(chunk, audio.samples.size() - pos));
+        for (auto& e : dec.take_events()) {
+            using K = owfax::wefax::StreamEvent::Kind;
+            switch (e.kind) {
+                case K::kStart:
+                    ++tx;
+                    lines = 0;
+                    live = owfax::GrayImage();
+                    std::printf("%8.1f s  start  #%d IOC %d%s\n", e.time_s, tx,
+                                static_cast<int>(e.ioc), e.apt_start ? "" : " (forced)");
+                    break;
+                case K::kLocked:
+                    std::printf("%8.1f s  locked clock %+.1f ppm, tuning %+.1f Hz, phasing %s\n",
+                                e.time_s, e.clock_ppm, e.tuning_offset_hz,
+                                e.phasing_found ? "found" : "not found");
+                    break;
+                case K::kLine:
+                    if (live.width == 0) live.width = e.pixels.size();
+                    live.pixels.insert(live.pixels.end(), e.pixels.begin(), e.pixels.end());
+                    live.height = ++lines;
+                    break;
+                case K::kComplete:
+                    std::printf("%8.1f s  end    #%d: %zu live lines", e.time_s, tx, lines);
+                    if (live.height > 0) owfax::write_png(name("_live"), live);
+                    if (e.final) {
+                        std::printf(", final %zu lines, clock %+.1f ppm", e.final->image.height,
+                                    e.final->report.clock_ppm);
+                        owfax::write_png(name(""), e.final->image);
+                    }
+                    std::printf("\n");
+                    break;
+            }
+        }
+    }
+    return tx > 0 ? 0 : 1;
 }
 
 int cmd_cut(Args args) {
@@ -277,6 +340,7 @@ int main(int argc, char** argv) {
         if (cmd == "probe") return cmd_probe(args);
         if (cmd == "decode-all") return cmd_decode_all(args);
         if (cmd == "cut") return cmd_cut(args);
+        if (cmd == "stream") return cmd_stream(args);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "Error: %s\n", e.what());
         return 1;

@@ -11,6 +11,7 @@ add_executable(owfax_tests
   test_dsp.cpp
   test_files.cpp
   test_wefax_decode.cpp
+  test_stream_decoder.cpp
   test_wefax_params.cpp)
 target_link_libraries(owfax_tests PRIVATE owfax::core)
 owfax_set_target_options(owfax_tests)

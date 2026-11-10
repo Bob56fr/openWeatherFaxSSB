@@ -1,0 +1,281 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 openWeatherFaxSSB contributors
+   Responsive, light/dark/red-night themes, touch targets >= 44 px (UI-001, NFR-008). */
+
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --text: #13202b;
+  --muted: #5a6b78;
+  --line: #d3dbe2;
+  --accent: #0b5cad;
+  --accent-text: #ffffff;
+  --ok: #1d7a3a;
+  --live: #b3261e;
+  --chart-filter: none;
+  font-size: 18px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="night"]) {
+    --bg: #0f151b;
+    --panel: #182129;
+    --text: #e4ebf0;
+    --muted: #9aabb8;
+    --line: #2c3945;
+    --accent: #5aa6f0;
+    --accent-text: #08131d;
+    --ok: #5cc27e;
+    --live: #ff7a70;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f151b;
+  --panel: #182129;
+  --text: #e4ebf0;
+  --muted: #9aabb8;
+  --line: #2c3945;
+  --accent: #5aa6f0;
+  --accent-text: #08131d;
+  --ok: #5cc27e;
+  --live: #ff7a70;
+}
+
+/* Red night mode: preserves night vision on the bridge. Charts are inverted (dark
+   background) and tinted red. */
+:root[data-theme="night"] {
+  --bg: #000000;
+  --panel: #0a0000;
+  --text: #d22a1e;
+  --muted: #8f1d15;
+  --line: #3a0905;
+  --accent: #b3241a;
+  --accent-text: #000000;
+  --ok: #d22a1e;
+  --live: #ff3b2e;
+  --chart-filter: url(#night-red);
+  --chart-bg: #000000;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.45;
+}
+
+a { color: var(--accent); }
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tabs a.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.badge.receiving { color: var(--live); border-color: var(--live); font-weight: 600; }
+.badge.listening { color: var(--ok); border-color: var(--ok); }
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 16px 32px;
+}
+
+h1 { font-size: 1.35rem; margin: 8px 0 12px; }
+
+.meta { color: var(--muted); margin: 0 0 12px; }
+.empty { color: var(--muted); font-style: italic; }
+
+.button, button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button:disabled { opacity: 0.4; cursor: default; }
+
+.group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-bottom: 12px;
+}
+
+.canvas-wrap, .chart-frame {
+  background: var(--chart-bg, #ffffff);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+#live-canvas, #chart-img, .gallery img {
+  display: block;
+  filter: var(--chart-filter);
+  image-rendering: auto;
+}
+
+.canvas-wrap { overflow: hidden; }
+#live-canvas { width: 100%; height: auto; }
+
+.chart-frame { max-height: 80vh; }
+.chart-frame.fit #chart-img { width: 100%; height: auto; }
+.chart-frame:not(.fit) #chart-img { max-width: none; }
+
+.gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.gallery a {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.gallery img {
+  width: 100%;
+  aspect-ratio: 1810 / 1300;
+  object-fit: contain;
+  object-position: top;
+  background: #ffffff;
+}
+
+.gallery .caption { padding: 8px 10px 10px; }
+.gallery .when { font-weight: 600; }
+.gallery .facts { color: var(--muted); font-size: 0.85rem; }
+
+.report {
+  border-collapse: collapse;
+  margin: 14px 0;
+  width: 100%;
+  max-width: 640px;
+}
+
+.report th, .report td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.report th { color: var(--muted); font-weight: 500; width: 45%; }
+
+.station { margin-bottom: 26px; }
+.station h2 { font-size: 1.1rem; margin: 0 0 4px; }
+
+.slots { width: 100%; border-collapse: collapse; }
+.slots td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.slots td.time { white-space: nowrap; font-variant-numeric: tabular-nums; width: 1%; }
+.slots td.in { white-space: nowrap; color: var(--muted); width: 1%; text-align: right; }
+.slots tr.next td { font-weight: 600; }
+.slots tr.next td.in { color: var(--live); }
+
+fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 16px; padding: 10px 14px 14px; }
+legend { padding: 0 6px; color: var(--muted); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 3;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  justify-content: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 560px) {
+  :root { font-size: 17px; }
+  .tabs { margin-left: 0; width: 100%; }
+  .tabs a { flex: 1 1 auto; justify-content: center; padding: 0 8px; }
+}

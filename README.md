@@ -73,10 +73,11 @@ arecord -t raw -f S16_LE -c1 -r 48000 | owfaxd --input stdin --rate 48000 --out 
 
 Une carte démarre sur le ton APT, ou, s'il a été manqué ou haché par le QRM, sur le signal fax lui-même (des lignes qui se répètent d'une ligne à l'autre, ce que ne font ni le bruit ni la porteuse). Elle se termine sur le ton de fin, ou après 60 s de bruit si ce ton est perdu ; deux cartes dont les tons ont tous été perdus sont séparées par leur phasing. Le champ `start` du JSON indique `apt`, `signal` ou `forced`. `--no-auto-start` revient au démarrage sur APT seul.
 
-API locale (lecture seule, clients du réseau local uniquement) : `--http <port>` sert les cartes, l'état, le catalogue des stations et le direct ligne par ligne en WebSocket ; voir [docs/api/openapi.yaml](docs/api/openapi.yaml).
+Interface web et API locale (lecture seule, clients du réseau local uniquement) : `--http <port>` sert l'interface (`--web web`), les cartes, l'état, le catalogue des stations et le direct ligne par ligne en WebSocket ; voir [docs/api/openapi.yaml](docs/api/openapi.yaml). L'interface, en français et en anglais, montre la réception en direct, la galerie des cartes (versions brute, améliorée et aperçu direct, bouton Avant / Après, rapport de décodage), le planning des stations sur 24 h, et offre les thèmes clair, sombre et nuit rouge. Elle fonctionne hors ligne, sans CDN ni outil de construction.
 
 ```sh
-owfaxd --input alsa:plughw:CARD=Device,DEV=0 --out cartes --shift 850 --http 8080 --catalog catalog/stations
+owfaxd --input alsa:plughw:CARD=Device,DEV=0 --out cartes --shift 850 --http 8080 --web web --catalog catalog/stations
+# puis, depuis un téléphone ou un PC du bord : http://192.168.1.19:8080/
 curl http://192.168.1.19:8080/api/v1/charts             # cartes reçues, plus récentes d'abord
 curl -O http://192.168.1.19:8080/api/v1/charts/20261110T0735Z_GYA/raw.png
 curl -O "http://192.168.1.19:8080/api/v1/charts/20261110T0735Z_GYA/raw.png?levels=16"   # version légère
@@ -93,6 +94,7 @@ core/        Bibliothèque C++17 portable : sources, DSP, décodeurs, moteur de 
 io/          Entrées matérielles (ALSA ; WASAPI et Android à venir), hors du cœur
 apps/cli/    Outil en ligne de commande (développement, usage headless)
 net/         API HTTP locale et direct WebSocket (sans bibliothèque tierce)
+web/         Interface web (HTML, CSS, JavaScript ES2017, traductions)
 apps/daemon/ owfaxd, moteur de réception en tâche de fond
 tests/       Tests unitaires (sans dépendance externe)
 cmake/       Modules CMake et toolchains de cross-compilation
@@ -100,7 +102,7 @@ catalog/     Catalogue des stations (horaires, fréquences, sources)
 docs/        Spécification, journal de développement, API (OpenAPI)
 ```
 
-À venir : `web/` (interface web), `android/` (application et service), `station/` (image Raspberry Pi).
+À venir : `android/` (application et service), `station/` (image Raspberry Pi).
 
 ## Contribuer
 

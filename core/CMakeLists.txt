@@ -14,6 +14,7 @@ add_library(owfax_core
   src/dsp/fir.cpp
   src/dsp/fm_demod.cpp
   src/engine/receiver.cpp
+  src/image/gray_image.cpp
   src/image/png_writer.cpp
   src/image/zlib.cpp
   src/wefax/decoder.cpp

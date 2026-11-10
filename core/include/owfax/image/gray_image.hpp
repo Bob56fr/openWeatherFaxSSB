@@ -24,6 +24,10 @@ struct GrayImage {
     std::uint8_t at(std::size_t x, std::size_t y) const { return pixels[y * width + x]; }
 };
 
+/// Reduces an image to `width` pixels (aspect ratio kept) by averaging each source
+/// area: thumbnails for the web interface. Returns a copy if already narrower.
+GrayImage shrink_to_width(const GrayImage& image, std::size_t width);
+
 /// Writes a grayscale PNG (spec IMG-003): per-scanline PNG filters and deflate
 /// compression, dependency-free. `bit_depth` 8 is lossless (the reference image);
 /// 4 keeps the nearest of 16 grey levels, about 4x smaller, for display over a slow

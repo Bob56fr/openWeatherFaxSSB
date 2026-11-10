@@ -411,6 +411,15 @@ int run(const Options& o) {
     std::unique_ptr<owfax::net::HttpServer> server;
     bool status_dirty = true;
     if (o.http_port > 0) {
+        std::error_code ec;
+        if (!o.web_dir.empty() && !fs::exists(fs::path(o.web_dir) / "index.html", ec)) {
+            throw std::runtime_error("--web " + o.web_dir +
+                                     ": no index.html there (run from the repository root, or "
+                                     "give the full path of the web directory)");
+        }
+        if (!o.catalog_dir.empty() && !fs::is_directory(o.catalog_dir, ec)) {
+            throw std::runtime_error("--catalog " + o.catalog_dir + ": not a directory");
+        }
         owfax::net::ApiConfig ac;
         ac.charts_dir = o.rx.output_dir;
         ac.catalog_dir = o.catalog_dir;

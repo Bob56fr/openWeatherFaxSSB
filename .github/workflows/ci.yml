@@ -187,6 +187,16 @@ jobs:
       - name: Band-change guard (spec CAT-009)
         run: bash tools/capture/tests/test_band_guard.sh
 
+  web:
+    name: Web interface (JavaScript syntax, translations)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: node --check web/app.js
+      - name: Translations complete (UI-005)
+        run: python3 tools/web/check_i18n.py
+
   format:
     name: clang-format
     runs-on: ubuntu-24.04

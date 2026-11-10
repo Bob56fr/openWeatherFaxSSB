@@ -239,12 +239,20 @@ Response Api::chart(const std::string& stem, const std::string& part,
     if (!levels.empty() && levels != "16" && levels != "256") {
         return error(400, "levels: 16 (light display version) or 256 (default)");
     }
+    const std::string width = query_value(query, "width");
+    if (!width.empty() && width != "360" && width != "720") {
+        return error(400, "width: 360 or 720 (thumbnails), or absent (full size)");
+    }
     const fs::path source = dir / (stem + suffix);
     std::optional<std::string> data;
-    if (levels == "16") {
-        // Display version: 16 grey levels, about 4x smaller (Wi-Fi of a boat). Made on
-        // the first request and kept next to the original, remade when it changes.
-        const fs::path cached = dir / (stem + suffix.substr(0, suffix.size() - 4) + ".l16.png");
+    if (levels == "16" || !width.empty()) {
+        // Display versions: 16 grey levels (about 4x smaller, for the Wi-Fi of a boat)
+        // and/or a thumbnail width. Made on the first request and kept next to the
+        // original, remade when the original changes (live preview).
+        std::string name = stem + suffix.substr(0, suffix.size() - 4);
+        if (levels == "16") name += ".l16";
+        if (!width.empty()) name += ".w" + width;
+        const fs::path cached = dir / (name + ".png");
         std::error_code ec;
         const auto src_time = fs::last_write_time(source, ec);
         if (ec) return error(404, "no " + part + " for " + stem);
@@ -253,9 +261,9 @@ Response Api::chart(const std::string& stem, const std::string& part,
         if (!data) {
             const auto png = read_file(source);
             if (!png) return error(404, "no " + part + " for " + stem);
-            const auto img =
-                decode_png(reinterpret_cast<const std::uint8_t*>(png->data()), png->size());
-            const auto light = encode_png(img, 4);
+            auto img = decode_png(reinterpret_cast<const std::uint8_t*>(png->data()), png->size());
+            if (!width.empty()) img = shrink_to_width(img, std::stoul(width));
+            const auto light = encode_png(img, levels == "16" ? 4 : 8);
             data = std::string(light.begin(), light.end());
             fs::path tmp = cached;
             tmp +=

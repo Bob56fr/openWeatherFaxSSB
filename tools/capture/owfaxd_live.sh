@@ -10,7 +10,8 @@
 #
 # Usage: owfaxd_live.sh <assigned_kHz> <minutes> <label> [shift_hz]
 #   e.g. owfaxd_live.sh 13882.5 120 DWD 850
-# Environment: AUDIO_DEV, RATE, OWFAX_CORPUS, OWFAXD, RIG_* (see rig_safe.sh)
+# Environment: AUDIO_DEV, RATE, OWFAX_CORPUS, OWFAXD, RIG_* (see rig_safe.sh),
+#   HTTP_PORT (web interface and API, default 8080; 0 = none)
 
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -30,6 +31,11 @@ AUDIO_DEV=${AUDIO_DEV:-plughw:CARD=Device,DEV=0}
 RATE=${RATE:-48000}
 CORPUS=${OWFAX_CORPUS:-$HOME/owfax-corpus}
 OWFAXD=${OWFAXD:-$HERE/../../build/apps/daemon/owfaxd}
+HTTP_PORT=${HTTP_PORT:-8080}
+HTTP_ARGS=()
+if [[ $HTTP_PORT != 0 ]]; then
+  HTTP_ARGS=(--http "$HTTP_PORT" --web "$HERE/../../web" --catalog "$HERE/../../catalog/stations")
+fi
 J=$CORPUS/journal.log
 mkdir -p "$CORPUS/decoded"
 
@@ -51,4 +57,5 @@ PROFILE=$(rig_rx_profile "$KHZ")
 echo "$(date -u '+%Y-%m-%d %H:%MZ')  $LABEL : owfaxd en direct sur $KHZ kHz, $MINUTES min ($PROFILE)" >>"$J"
 
 "$OWFAXD" --input "alsa:$AUDIO_DEV" --rate "$RATE" --out "$CORPUS/decoded" \
-  --label "${LABEL}_${KHZ}kHz" --shift "$SHIFT" --duration $((MINUTES * 60)) --journal "$J"
+  --label "${LABEL}_${KHZ}kHz" --shift "$SHIFT" --duration $((MINUTES * 60)) --journal "$J" \
+  "${HTTP_ARGS[@]}"

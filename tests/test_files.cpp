@@ -150,3 +150,17 @@ OWFAX_TEST(png_16_levels_display_version) {
     OWFAX_CHECK(light.size() * 3 < full.size() * 2);
     OWFAX_CHECK(owfax::decode_png(full.data(), full.size()).pixels == img.pixels);
 }
+
+OWFAX_TEST(shrink_to_width_averages_areas) {
+    owfax::GrayImage img(1810, 1295, 255);
+    for (std::size_t y = 0; y < img.height; ++y) {
+        for (std::size_t x = 0; x < img.width / 2; ++x) img.at(x, y) = 0;  // left half black
+    }
+    const auto t = owfax::shrink_to_width(img, 360);
+    OWFAX_CHECK(t.width == 360);
+    OWFAX_CHECK(t.height == 258);  // 1295 * 360 / 1810, rounded
+    OWFAX_CHECK(t.at(10, 100) == 0 && t.at(350, 100) == 255);
+    OWFAX_CHECK(t.at(179, 0) < 255 || t.at(180, 0) > 0);  // a mixed column at the edge
+    const auto same = owfax::shrink_to_width(img, 4000);
+    OWFAX_CHECK(same.width == img.width && same.pixels == img.pixels);
+}

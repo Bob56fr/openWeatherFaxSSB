@@ -1,0 +1,109 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later
+     Copyright (C) 2026 openWeatherFaxSSB contributors
+     Web interface served by owfaxd (spec ARC-002/003): no build step, no CDN, ES2017. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>openWeatherFaxSSB</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23123'/%3E%3Cpath d='M2 11c3-6 5-6 6 0s3 6 6 0' stroke='%23fff' fill='none' stroke-width='1.6'/%3E%3C/svg%3E">
+</head>
+<body>
+<!-- Red night mode for charts: white paper becomes black, ink becomes dim pure red. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="night-red" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="-0.21 -0.72 -0.07 0 0.85  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/>
+  </filter>
+</svg>
+<header class="bar">
+  <a class="brand" href="#live">openWeatherFaxSSB</a>
+  <span id="state" class="badge" role="status" aria-live="polite"></span>
+  <nav class="tabs" aria-label="Navigation">
+    <a href="#live" data-i18n="nav.live" data-tab="live"></a>
+    <a href="#charts" data-i18n="nav.charts" data-tab="charts"></a>
+    <a href="#schedule" data-i18n="nav.schedule" data-tab="schedule"></a>
+    <a href="#settings" data-i18n="nav.settings" data-tab="settings"></a>
+  </nav>
+</header>
+
+<main>
+  <section id="view-live" class="view" hidden>
+    <h1 data-i18n="live.title"></h1>
+    <p id="live-info" class="meta"></p>
+    <div class="canvas-wrap"><canvas id="live-canvas" width="1810" height="1"></canvas></div>
+    <p id="live-idle" class="empty" data-i18n="live.idle" hidden></p>
+    <p><a id="live-last" class="button" hidden></a></p>
+  </section>
+
+  <section id="view-charts" class="view" hidden>
+    <h1 data-i18n="charts.title"></h1>
+    <p id="charts-empty" class="empty" data-i18n="charts.empty" hidden></p>
+    <ul id="gallery" class="gallery"></ul>
+  </section>
+
+  <section id="view-chart" class="view" hidden>
+    <p><a href="#charts" class="button" data-i18n="chart.back"></a></p>
+    <h1 id="chart-title"></h1>
+    <div class="toolbar">
+      <div class="group" role="group" id="version-group">
+        <button type="button" data-version="raw" data-i18n="chart.raw"></button>
+        <button type="button" data-version="enhanced" data-i18n="chart.enhanced"></button>
+        <button type="button" data-version="live" data-i18n="chart.live"></button>
+      </div>
+      <div class="group" role="group">
+        <button type="button" id="quality-toggle"></button>
+        <button type="button" id="zoom-toggle"></button>
+      </div>
+    </div>
+    <div id="chart-frame" class="chart-frame fit"><img id="chart-img" alt=""></div>
+    <table id="chart-report" class="report"></table>
+    <p><a id="chart-download" class="button" download data-i18n="chart.download"></a></p>
+  </section>
+
+  <section id="view-schedule" class="view" hidden>
+    <h1 data-i18n="schedule.title"></h1>
+    <p class="meta" id="schedule-clock"></p>
+    <div id="schedule"></div>
+  </section>
+
+  <section id="view-settings" class="view" hidden>
+    <h1 data-i18n="settings.title"></h1>
+    <fieldset>
+      <legend data-i18n="settings.language"></legend>
+      <div class="group" role="group">
+        <button type="button" data-lang="fr">Français</button>
+        <button type="button" data-lang="en">English</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.theme"></legend>
+      <div class="group" role="group">
+        <button type="button" data-theme-choice="auto" data-i18n="theme.auto"></button>
+        <button type="button" data-theme-choice="light" data-i18n="theme.light"></button>
+        <button type="button" data-theme-choice="dark" data-i18n="theme.dark"></button>
+        <button type="button" data-theme-choice="night" data-i18n="theme.night"></button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.alerts"></legend>
+      <div class="group" role="group">
+        <button type="button" data-sound="on" data-i18n="settings.sound_on"></button>
+        <button type="button" data-sound="off" data-i18n="settings.sound_off"></button>
+      </div>
+    </fieldset>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="alert" hidden></div>
+
+<footer class="foot">
+  <span id="about"></span>
+  <a id="source-link" href="https://github.com/Bob56fr/openWeatherFaxSSB" data-i18n="foot.source"></a>
+  <span data-i18n="foot.receive_only"></span>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

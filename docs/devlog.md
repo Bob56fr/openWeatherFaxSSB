@@ -178,3 +178,26 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   `?levels=16` sur les images de l'API, faite à la première demande et gardée à côté
   de l'original. DWD 22:00 : 0,59 Mo (×3,9) ; GYA : ×3,1 à ×3,6. Visuellement
   identique (chiffres, fronts, isobares). L'image brute 8 bits reste la référence.
+
+### Interface web (première version, consultation)
+
+- `web/` : HTML, CSS et JavaScript ES2017 sans dépendance ni étape de construction,
+  servis par `owfaxd --http <port> --web web`. Français et anglais (UI-005), thèmes
+  automatique, clair, sombre et nuit rouge (filtre SVG : fond noir, encre rouge pure),
+  cibles tactiles ≥ 44 px, lien vers le code source et la version (UI-006).
+- Direct (DSP-007) : en arrivant en cours de réception, l'aperçu déjà reçu (16
+  niveaux) est chargé, puis chaque ligne du WebSocket est dessinée dans un canevas.
+- Cartes : galerie en vignettes (`?levels=16&width=360`, 2x pour les écrans denses),
+  fiche avec versions brute / améliorée / aperçu direct au même endroit (Avant /
+  Après, UI-008/009), version légère ou pleine qualité, taille réelle, rapport
+  (démarrage APT / signal, phasage, horloge, accord, qualité, clics corrigés).
+- Planning : les 24 h à venir à partir du prochain créneau, avec compte à rebours.
+- Alertes dans la page (NOT-005) : message à chaque début et fin de carte, signal
+  sonore en option.
+- API : vignettes `width=360|720`, faites à la demande et gardées en cache.
+- Vérifié avec Chrome headless : direct pendant une réception rejouée en temps réel,
+  galerie, fiche, planning, mode nuit, largeur téléphone (cadre de 375 px). CI :
+  syntaxe JavaScript et traductions complètes.
+- À faire ensuite : paramétrage (rôle skipper, mot de passe, UI-002), assistant de
+  première configuration (UI-003), page de diagnostic (UI-007), essais sur les
+  navigateurs anciens réels (Chrome 109, Firefox ESR 115, Safari iOS 15).

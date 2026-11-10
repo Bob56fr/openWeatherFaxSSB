@@ -125,20 +125,48 @@ def page():
             parts.append(f"<h3>{html.escape(os.path.basename(log))}</h3><pre>" +
                          html.escape("".join(tail(log, 12))) + "</pre>")
 
-    pngs = sorted(glob.glob(os.path.join(corpus, "decoded", "*.png")), key=os.path.getmtime,
-                  reverse=True)[:12]
+    # Raw images are the reference (DSP-030); "_enh" = validated enhancements,
+    # "_live" = live preview from the streaming decoder. All variants are kept so the
+    # skipper can check what an enhancement changed (before/after).
+    decoded = os.path.join(corpus, "decoded")
+    pngs = [p for p in glob.glob(os.path.join(decoded, "*.png"))
+            if not p.endswith(("_enh.png", "_live.png"))]
+    pngs = sorted(pngs, key=os.path.getmtime, reverse=True)[:12]
     parts.append("<h2>Cartes décodées</h2>")
     if not pngs:
         parts.append("<p class=muted>Aucune pour l'instant.</p>")
-    for p in pngs:
+    for i, p in enumerate(pngs):
         name = os.path.basename(p)
-        url = "/img/" + urllib.parse.quote(name)
-        parts.append(f'<figure><a href="{url}"><img src="{url}" loading="lazy" alt="{html.escape(name)}"></a>'
-                     f"<figcaption>{html.escape(name)}</figcaption></figure>")
+        variants = [("Brut (avant)", name)]
+        for suffix, label in (("_enh.png", "Amélioré (après)"), ("_live.png", "Aperçu direct")):
+            v = name[:-4] + suffix
+            if os.path.isfile(os.path.join(decoded, v)):
+                variants.append((label, v))
+        urls = ["/img/" + urllib.parse.quote(v) for _, v in variants]
+        buttons = "".join(
+            f'<button type=button class="{"on" if k == 0 else ""}" data-fig="f{i}" data-src="{u}">'
+            f"{html.escape(label)}</button>"
+            for k, ((label, _), u) in enumerate(zip(variants, urls)))
+        parts.append(
+            f'<figure id="f{i}"><div class=switch>{buttons if len(variants) > 1 else ""}</div>'
+            f'<a href="{urls[0]}"><img src="{urls[0]}" loading="lazy" alt="{html.escape(name)}"></a>'
+            f"<figcaption>{html.escape(name)}</figcaption></figure>")
+    parts.append("""<script>
+let lastTouch = 0;
+document.querySelectorAll('.switch button').forEach(b => b.addEventListener('click', () => {
+  const fig = document.getElementById(b.dataset.fig);
+  fig.querySelector('img').src = b.dataset.src;
+  fig.querySelector('a').href = b.dataset.src;
+  fig.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  lastTouch = Date.now();
+}));
+// Refresh every 15 s, but not while the user is comparing images (2 min pause).
+setInterval(() => { if (Date.now() - lastTouch > 120000) location.reload(); }, 15000);
+</script>""")
 
     return f"""<!doctype html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<meta http-equiv=refresh content=15><title>owfax labo</title><style>
+<title>owfax labo</title><style>
 :root {{ --bg:#fbfaf7; --fg:#1d1d1b; --muted:#6b6a65; --line:#2563eb; --grid:#e3e1da; --live:#b91c1c; --code:#f1efe9; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#161614; --fg:#ecebe6; --muted:#9a988f; --line:#60a5fa; --grid:#33322e; --live:#f87171; --code:#22211e; }} }}
 body {{ background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,sans-serif; margin:0 auto; max-width:1000px; padding:16px; }}
@@ -149,6 +177,9 @@ pre {{ background:var(--code); padding:8px; overflow-x:auto; font-size:12px; whi
 .line {{ fill:none; stroke:var(--line); stroke-width:1.5; }}
 figure {{ margin:0 0 16px; }} img {{ max-width:100%; border:1px solid var(--grid); background:#fff; }}
 figcaption {{ color:var(--muted); font-size:12px; }}
+.switch {{ display:flex; gap:6px; margin:4px 0; flex-wrap:wrap; }}
+.switch button {{ font:inherit; font-size:13px; padding:6px 12px; min-height:36px; border:1px solid var(--grid); background:var(--code); color:var(--fg); border-radius:6px; cursor:pointer; }}
+.switch button.on {{ background:var(--line); color:#fff; border-color:var(--line); }}
 </style></head><body>{"".join(parts)}</body></html>"""
 
 

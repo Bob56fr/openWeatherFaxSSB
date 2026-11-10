@@ -39,6 +39,8 @@ while read -r _ from to; do
   name="${abs}_${LABEL:-wefax}_${KHZ:-0}kHz.wav"
   "$CLI" cut "$IN" "$OUT/$name" --from "$from" --to "$to" --rate "$RATE" >/dev/null
   "$CLI" decode "$OUT/$name" "$OUT/${name%.wav}.png" --shift "$SHIFT" >"$TMP/one.txt"
+  # Enhanced version (validated enhancements) for the before/after comparison.
+  "$CLI" decode "$OUT/$name" "$OUT/${name%.wav}_enh.png" --shift "$SHIFT" --enhance >/dev/null
   lines=$(sed -n 's/^Image: *[0-9]* x \([0-9]*\),.*/\1/p' "$TMP/one.txt")
   ppm=$(sed -n 's/^Clock error: *\([-+0-9.]*\) ppm/\1/p' "$TMP/one.txt")
   tune=$(sed -n 's/^Tuning offset: *\([-+0-9.]*\) Hz/\1/p' "$TMP/one.txt")

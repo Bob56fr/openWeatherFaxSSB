@@ -383,6 +383,68 @@ void render_line(const std::vector<float>& lum, double start, double period, std
     }
 }
 
+/// Degraded-pixel repair (DSP-021). Real receptions (DWD 22:00 and GYA, 2026-11-09):
+/// the stripes are noisy *segments* of lines (fading dips, QRM), not whole lost lines,
+/// and real horizontal chart lines must never be touched. So the decision is taken on
+/// the received signal, pixel by pixel: a pixel is degraded when many of the
+/// demodulator samples under it fell outside the black-white range (FM clicks).
+/// Degraded pixels with a clean pixel above and below within kMaxGap rows are replaced
+/// by vertical interpolation; anything else stays as received (no invention, DSP-030).
+/// Returns the indices of the lines that were modified.
+std::vector<std::size_t> repair_pixels(GrayImage& img, const std::vector<std::uint8_t>& ok,
+                                       double first_line, double period) {
+    constexpr double kBadFraction = 0.25;  // share of out-of-range samples under a pixel
+    constexpr std::size_t kMaxGap = 2;     // rows that may be bridged vertically
+    const std::size_t w = img.width;
+    const std::size_t h = img.height;
+    std::vector<std::size_t> lines;
+    if (w == 0 || h < 3) return lines;
+    const double px = period / to_d(w);
+    std::vector<std::uint8_t> bad(w * h, 0);
+    for (std::size_t y = 0; y < h; ++y) {
+        const double s = first_line + to_d(y) * period;
+        for (std::size_t x = 0; x < w; ++x) {
+            // Window of +-1.5 pixels around the pixel centre.
+            const double c = s + (to_d(x) + 0.5) * px;
+            const auto a = static_cast<std::size_t>(std::max(0.0, c - 1.5 * px));
+            const auto b =
+                std::min(ok.size(), static_cast<std::size_t>(std::max(0.0, c + 1.5 * px)) + 1);
+            std::size_t n = 0;
+            std::size_t out = 0;
+            for (std::size_t i = a; i < b; ++i, ++n) out += ok[i] ? 0U : 1U;
+            if (n > 0 && to_d(out) > kBadFraction * to_d(n)) bad[y * w + x] = 1;
+        }
+    }
+    std::vector<std::uint8_t> touched(h, 0);
+    for (std::size_t x = 0; x < w; ++x) {
+        std::size_t y = 1;
+        while (y + 1 < h) {
+            if (!bad[y * w + x]) {
+                ++y;
+                continue;
+            }
+            std::size_t e = y;
+            while (e < h && bad[e * w + x]) ++e;
+            const std::size_t run = e - y;
+            if (run <= kMaxGap && e < h && !bad[(y - 1) * w + x]) {
+                const double above = img.at(x, y - 1);
+                const double below = img.at(x, e);
+                for (std::size_t k = 0; k < run; ++k) {
+                    const double t = to_d(k + 1) / to_d(run + 1);
+                    img.at(x, y + k) =
+                        static_cast<std::uint8_t>(std::lround((1.0 - t) * above + t * below));
+                    touched[y + k] = 1;
+                }
+            }
+            y = e + 1;
+        }
+    }
+    for (std::size_t y = 0; y < h; ++y) {
+        if (touched[y]) lines.push_back(y);
+    }
+    return lines;
+}
+
 double ppm_of(double period, double nominal) {
     return (period / nominal - 1.0) * 1e6;
 }
@@ -520,6 +582,9 @@ DecodeResult decode_frequency(std::vector<float> sig, double rate, const DecodeO
         rep.line_quality[y] = b > a ? static_cast<float>(to_d(good) / to_d(b - a)) : 0.0F;
     }
 
+    if (opt.repair_lines) {
+        rep.repaired_lines = repair_pixels(result.image, received_ok, first_line, period);
+    }
     rep.apt_start_s = start ? to_d(start->begin) / rate : -1.0;
     rep.image_start_s = first_line / rate;
     rep.image_end_s = (first_line + to_d(lines) * period) / rate;

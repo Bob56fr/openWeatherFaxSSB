@@ -41,7 +41,8 @@ nice "$HERE/../corpus/extract.sh" "$wav" "$CORPUS/corpus-v1" "$SHIFT" >"$CORPUS/
 after=$(wc -l <"$CORPUS/corpus-v1/corpus.tsv" 2>/dev/null || echo 1)
 mkdir -p "$CORPUS/decoded"
 tail -n $((after - before)) "$CORPUS/corpus-v1/corpus.tsv" | while IFS=$'\t' read -r file _ _ _ _ lines ppm tune qual _; do
-  cp -f "$CORPUS/corpus-v1/${file%.wav}.png" "$CORPUS/decoded/" 2>/dev/null
+  cp -f "$CORPUS/corpus-v1/${file%.wav}.png" "$CORPUS/corpus-v1/${file%.wav}_enh.png" \
+    "$CORPUS/decoded/" 2>/dev/null
   log "$LABEL : carte ${file%.wav} — $lines lignes, $ppm ppm, $tune Hz, qualité $qual %"
 done
 log "$LABEL : $((after - before)) émission(s) ajoutée(s) au corpus"

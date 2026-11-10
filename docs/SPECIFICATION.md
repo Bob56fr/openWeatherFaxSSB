@@ -176,6 +176,7 @@ Le CAT n'est **pas** supporté sur Android.
 
 - **DSP-020 (DOIT, V1)** — Blanker d'impulsions adaptatif (QRN, orages, parasites de bord).
 - **DSP-021 (DOIT, V1)** — Détection des lignes dégradées ou perdues ; interpolation verticale ou marquage visuel, selon le choix de l'utilisateur.
+  *État au 2026-11-10 : réparation pixel par pixel implémentée en option expérimentale (`--repair`) ; aucun gain visible sur le corpus réel, car les stries sont surtout du bruit FM restant dans la plage noir–blanc (fading). À reprendre avec un meilleur détecteur ou la diversité de fréquence (DSP-040).*
 - **DSP-022 (DOIT, V2)** — Post-traitement d'image :
   - débruitage morphologique adapté aux cartes (traits, texte) ;
   - nettoyage des points isolés ;
@@ -274,6 +275,8 @@ Le CAT n'est **pas** supporté sur Android.
   - sources disponibles ;
   - spectre et chute d'eau (waterfall) de l'audio d'entrée ;
   - journaux téléchargeables pour les rapports de bug.
+- **UI-008 (DOIT, V1)** — Pour chaque carte, l'application conserve et permet d'afficher **toutes les versions** : l'aperçu reçu en direct, l'image finale brute (référence, DSP-030) et l'image améliorée lorsqu'un traitement est activé. Le skipper peut ainsi vérifier en cas de doute ce qu'une amélioration a changé.
+- **UI-009 (DOIT, V1)** — Bouton **Avant / Après** sur chaque carte, pour basculer instantanément entre l'image brute et l'image améliorée au même endroit, et juger soi-même de l'apport d'un traitement. Le rapport indique les traitements appliqués et leur ampleur (échantillons ou pixels corrigés).
 
 ---
 

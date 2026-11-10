@@ -24,6 +24,10 @@ struct DecodeOptions {
     /// FM click suppression (DSP-020): repairs isolated demodulator spikes and samples far
     /// outside the black–white range. Off by default: the raw image is the reference (DSP-030).
     bool suppress_clicks = false;
+    /// EXPERIMENTAL degraded-pixel repair (DSP-021): pixels whose received signal is
+    /// mostly out of range are interpolated vertically. No visible gain yet on the real
+    /// corpus (2026-11-10): the stripes are mostly in-range FM noise. Off by default.
+    bool repair_lines = false;
 };
 
 struct DecodeReport {
@@ -40,6 +44,7 @@ struct DecodeReport {
     double image_end_s = 0.0;         ///< End of the last image line.
     std::vector<float> line_quality;  ///< Per image line: 1 = clean … 0 = unusable (DSP-008).
     std::size_t clicks_repaired = 0;  ///< Samples repaired by click suppression (0 if off).
+    std::vector<std::size_t> repaired_lines;  ///< Lines replaced by interpolation (DSP-021).
 };
 
 struct DecodeResult {

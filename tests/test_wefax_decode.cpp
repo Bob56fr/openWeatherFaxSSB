@@ -245,3 +245,15 @@ OWFAX_TEST(decode_all_ignores_idle_carrier) {
     }
     OWFAX_CHECK(results.empty());
 }
+
+OWFAX_TEST(pixel_repair_leaves_clean_image_untouched) {
+    ModulatorOptions mod;
+    mod.sample_rate = 8000;
+    const auto audio = modulate(make_test_chart(mod.ioc, 100), mod);
+    DecodeOptions repair;
+    repair.repair_lines = true;
+    const auto a = decode(audio);
+    const auto b = decode(audio, repair);
+    OWFAX_CHECK(b.report.repaired_lines.empty());
+    OWFAX_CHECK(a.image.pixels == b.image.pixels);
+}

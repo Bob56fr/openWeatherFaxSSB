@@ -143,3 +143,24 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   bruit avant, 11 min maintenant). Les cartes démarrées sur APT sont inchangées.
 - Limite : une carte démarrée en cours d'image, sans phasing, garde un décalage
   horizontal (comme le décodage hors ligne). À valider en direct sur GYA 4610 kHz.
+
+### API HTTP locale (étape 3)
+
+- Bibliothèque `net/` sans dépendance tierce : serveur HTTP/1.1 minimal (GET et HEAD,
+  en-têtes ≤ 8 Kio, requête lue en 10 s au plus, 32 connexions, un fil par
+  connexion), WebSocket en envoi seul (RFC 6455), sockets Winsock et POSIX. Écrit pour
+  le projet plutôt que pris dans une bibliothèque, pour la compatibilité Windows 7
+  et MinGW (cibles de la CI).
+- Clients hors réseau local refusés (403) : boucle locale, 10/8, 172.16/12,
+  192.168/16, 169.254/16 (NFR-006). Noms de cartes et de stations filtrés : aucun
+  accès hors des dossiers servis.
+- `/api/v1` : info (version, lien source AGPL §13), status, charts (+ live / raw /
+  enhanced.png), stations, live (WebSocket : status, start, lock, line, complete).
+  Décrit dans `docs/api/openapi.yaml` (ARC-005).
+- `owfaxd --http <port> [--catalog <dir>] [--web <dir>] [--keep-serving]`.
+- Vérifié de bout en bout : capture DWD 22:00 rejouée en temps réel, client
+  WebSocket recevant l'état, le début, le calage et ~2 lignes/s (1810 pixels) ; sur
+  le minix, API interrogée depuis le réseau local, images identiques aux fichiers,
+  tentative de sortie de dossier refusée, arrêt propre sur SIGTERM.
+- À noter : les PNG sont écrits sans compression (2,3 Mo par carte DWD), lourd pour
+  le Wi-Fi d'un bord ; à compresser avant l'interface web.

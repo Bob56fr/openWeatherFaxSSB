@@ -3,7 +3,7 @@
 
 find_package(Threads REQUIRED)
 add_executable(owfaxd main.cpp)
-target_link_libraries(owfaxd PRIVATE owfax::io Threads::Threads)
+target_link_libraries(owfaxd PRIVATE owfax::io owfax::net Threads::Threads)
 owfax_set_target_options(owfaxd)
 
 install(TARGETS owfaxd RUNTIME DESTINATION bin)

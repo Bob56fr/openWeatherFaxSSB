@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "owfax/wefax/decoder.hpp"
+#include "owfax/wefax/stream_decoder.hpp"
 
 namespace owfax::engine {
 
@@ -78,6 +79,11 @@ public:
 
     /// Progress messages (start, lock, files written), for the journal. Optional.
     std::function<void(const std::string&)> log;
+
+    /// Every decoder event (start, lock, each live line, end) with the stem of its
+    /// chart, after the receiver has handled it (files of a completed chart written).
+    /// Called on the thread that calls push(). Optional; used for live display.
+    std::function<void(const wefax::StreamEvent&, const std::string& stem)> on_event;
 
 private:
     struct Impl;

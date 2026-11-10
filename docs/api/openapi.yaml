@@ -1,0 +1,204 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Local HTTP API of owfaxd (spec ARC-002, ARC-005, DSP-007, UI-006, UI-008).
+openapi: 3.0.3
+info:
+  title: openWeatherFaxSSB local API
+  version: "1"
+  description: |
+    Served by the reception engine (`owfaxd --http <port>`) on the local network
+    only: clients outside loopback, 10/8, 172.16/12, 192.168/16 and 169.254/16 get
+    403 (spec NFR-006). Read only for now (GET and HEAD); settings will require the
+    skipper password (UI-002). Receive only: no endpoint can make the radio transmit.
+
+    Every error has a JSON body `{"error": "<message>"}`.
+  license:
+    name: AGPL-3.0-or-later
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+servers:
+  - url: http://owfax.local:8080
+paths:
+  /api/v1/info:
+    get:
+      summary: Version, source code link (AGPL-3.0 §13) and audio input
+      responses:
+        "200":
+          description: Build information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Info" }
+  /api/v1/status:
+    get:
+      summary: Engine state, refreshed every 5 s and at each chart start or end
+      responses:
+        "200":
+          description: Same content as status.json in the charts directory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+  /api/v1/charts:
+    get:
+      summary: Charts received, newest first
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, default: 200 }
+      responses:
+        "200":
+          description: Chart metadata, one object per chart
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Chart" }
+  /api/v1/charts/{stem}:
+    parameters:
+      - $ref: "#/components/parameters/Stem"
+    get:
+      summary: One chart's metadata
+      responses:
+        "200":
+          description: Chart metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Chart" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/charts/{stem}/{image}:
+    parameters:
+      - $ref: "#/components/parameters/Stem"
+      - name: image
+        in: path
+        required: true
+        description: |
+          live.png: preview built during reception (rewritten every 50 lines, not
+          cached); raw.png: final image as received, the reference (DSP-030);
+          enhanced.png: with the enhancements listed in the metadata (UI-008, UI-009).
+        schema: { type: string, enum: [live.png, raw.png, enhanced.png] }
+    get:
+      summary: One version of a chart image
+      responses:
+        "200":
+          description: Grey-level PNG
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/stations:
+    get:
+      summary: Station catalogue (owfax-station JSON files, see catalog/)
+      responses:
+        "200":
+          description: One object per station
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/stations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, example: dwd-pinneberg }
+    get:
+      summary: One station
+      responses:
+        "200":
+          description: Station
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/live:
+    get:
+      summary: Live stream over WebSocket (DSP-007)
+      description: |
+        RFC 6455 WebSocket, text messages from server to client, each a JSON object
+        with a `type`:
+
+        - `status`: `{"type": "status", "status": <Status>}`, first message, then
+          every 5 s and at each chart start or end;
+        - `start`: `{"type": "start", "stem", "ioc", "start": "apt"|"signal"|"forced"}`;
+        - `lock`: `{"type": "lock", "stem", "clock_ppm", "tuning_offset_hz",
+          "phasing_found"}`, image lines follow;
+        - `line`: `{"type": "line", "stem", "index", "width", "quality",
+          "pixels"}`, `pixels` = base64 of `width` grey levels (0 black … 255 white),
+          about two lines per second;
+        - `complete`: `{"type": "complete", "stem", "discarded", "lines"}`, the chart
+          files are written (or the transmission was discarded as a fragment).
+
+        A client too slow to keep up loses the oldest messages (more than 512
+        waiting); it can always reload `live.png`. Messages sent by the client are
+        ignored, except ping and close.
+      responses:
+        "101": { description: Switching to the WebSocket protocol }
+        "426": { description: Plain HTTP request without a WebSocket upgrade }
+  /{path}:
+    get:
+      summary: Web interface (static files of `--web <dir>`, or a built-in page)
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: File }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  parameters:
+    Stem:
+      name: stem
+      in: path
+      required: true
+      description: YYYYMMDDTHHMMZ_<label>, as in the chart file names
+      schema: { type: string, example: 20261110T0735Z_GYA_4610kHz }
+  responses:
+    NotFound:
+      description: Unknown resource
+      content:
+        application/json:
+          schema:
+            type: object
+            properties: { error: { type: string } }
+  schemas:
+    Info:
+      type: object
+      properties:
+        name: { type: string }
+        version: { type: string }
+        git_revision: { type: string }
+        license: { type: string }
+        source_url: { type: string, description: "Exact source of this build (UI-006)" }
+        api_version: { type: integer, example: 1 }
+        receive_only: { type: boolean, example: true }
+        input: { type: string }
+    Status:
+      type: object
+      properties:
+        updated_utc: { type: string, example: "2026-11-10 20:10:00Z" }
+        input: { type: string }
+        state: { type: string, enum: [starting, listening, receiving, stopped] }
+        current: { type: string, description: "Stem of the chart being received, or empty" }
+        audio_s: { type: number }
+        queued_samples: { type: integer }
+        overruns: { type: integer }
+        dropped_samples: { type: integer }
+        charts: { type: integer }
+        live_clients: { type: integer }
+    Chart:
+      type: object
+      properties:
+        stem: { type: string }
+        label: { type: string }
+        start_utc: { type: string, example: 20261110T0735Z }
+        start_unix: { type: integer }
+        duration_s: { type: number }
+        ioc: { type: integer, enum: [576, 288] }
+        apt_start: { type: boolean }
+        start: { type: string, enum: [apt, signal, forced] }
+        phasing_found: { type: boolean }
+        live_lines: { type: integer }
+        lines: { type: integer }
+        clock_ppm: { type: number }
+        tuning_offset_hz: { type: number }
+        quality: { type: number, minimum: 0, maximum: 1 }
+        enhancements: { type: array, items: { type: string } }
+        clicks_repaired: { type: integer }

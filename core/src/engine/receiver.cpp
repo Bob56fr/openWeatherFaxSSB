@@ -278,6 +278,7 @@ struct Receiver::Impl {
                 case StreamEvent::Kind::kLine: on_line(e); break;
                 case StreamEvent::Kind::kComplete: on_complete(e); break;
             }
+            if (owner.on_event) owner.on_event(e, current.stem);
         }
     }
 };

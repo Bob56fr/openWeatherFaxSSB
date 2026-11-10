@@ -23,6 +23,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -32,6 +33,9 @@
 #include "owfax/build_info.hpp"
 #include "owfax/engine/receiver.hpp"
 #include "owfax/io/audio_input.hpp"
+#include "owfax/net/api.hpp"
+#include "owfax/net/encoding.hpp"
+#include "owfax/net/http_server.hpp"
 
 namespace {
 
@@ -58,6 +62,11 @@ struct Options {
     std::optional<std::int64_t> start_unix;
     double duration_s = 0.0;  // 0 = until the end of the stream or a signal
     bool force_start = false;
+    int http_port = 0;  // 0 = no HTTP API
+    std::string http_bind = "0.0.0.0";
+    std::string catalog_dir;
+    std::string web_dir;
+    bool keep_serving = false;
 };
 
 class Journal {
@@ -184,6 +193,13 @@ void usage() {
         "  --start-unix <t>      UTC time of the first sample (default: now)\n"
         "  --journal <file>      also append the journal to this file\n"
         "\n"
+        "Local HTTP API (read only, local network clients only):\n"
+        "  --http <port>         serve the API and web interface on this port\n"
+        "  --http-bind <ipv4>    address to listen on (default: 0.0.0.0, all interfaces)\n"
+        "  --catalog <dir>       station catalogue served at /api/v1/stations\n"
+        "  --web <dir>           web interface files (default: a built-in page)\n"
+        "  --keep-serving        keep the API up after the input ends (until a signal)\n"
+        "\n"
         "Files per chart in --out: <stem>_live.png, <stem>.png (raw), <stem>_enh.png,\n"
         "<stem>.json; <stem> = YYYYMMDDTHHMMZ_<label>. status.json is refreshed every 5 s.\n",
         stdout);
@@ -256,6 +272,24 @@ bool parse(int argc, char** argv, Options& o) {
         } else if (a == "--journal") {
             if ((v = value(i)) == nullptr) return false;
             o.journal = v;
+        } else if (a == "--http") {
+            if ((v = value(i)) == nullptr) return false;
+            o.http_port = std::atoi(v);
+            if (o.http_port <= 0 || o.http_port > 65535) {
+                std::fputs("owfaxd: --http needs a port number\n", stderr);
+                return false;
+            }
+        } else if (a == "--http-bind") {
+            if ((v = value(i)) == nullptr) return false;
+            o.http_bind = v;
+        } else if (a == "--catalog") {
+            if ((v = value(i)) == nullptr) return false;
+            o.catalog_dir = v;
+        } else if (a == "--web") {
+            if ((v = value(i)) == nullptr) return false;
+            o.web_dir = v;
+        } else if (a == "--keep-serving") {
+            o.keep_serving = true;
         } else {
             std::fprintf(stderr, "owfaxd: unknown option '%s' (see --help)\n", a.c_str());
             return false;
@@ -272,31 +306,93 @@ bool parse(int argc, char** argv, Options& o) {
     return true;
 }
 
-void write_status(const fs::path& dir, const std::string& input, const std::string& state,
-                  const std::string& stem, double audio_s, std::size_t queued, std::size_t overruns,
-                  std::size_t dropped, std::size_t charts) {
+std::string fmt(const char* format, double v) {
+    char buf[64];
+    std::snprintf(buf, sizeof buf, format, v);
+    return buf;
+}
+
+/// Engine state: written to status.json and served at /api/v1/status.
+std::string status_json(const std::string& input, const std::string& state, const std::string& stem,
+                        double audio_s, std::size_t queued, std::size_t overruns,
+                        std::size_t dropped, std::size_t charts, std::size_t live_clients) {
+    using owfax::engine::json_escape;
+    return "{\n"
+           "  \"updated_utc\": \"" +
+           utc_text(now_unix()) +
+           "\",\n"
+           "  \"input\": \"" +
+           json_escape(input) +
+           "\",\n"
+           "  \"state\": \"" +
+           state +
+           "\",\n"
+           "  \"current\": \"" +
+           json_escape(stem) +
+           "\",\n"
+           "  \"audio_s\": " +
+           fmt("%.1f", audio_s) +
+           ",\n"
+           "  \"queued_samples\": " +
+           std::to_string(queued) +
+           ",\n"
+           "  \"overruns\": " +
+           std::to_string(overruns) +
+           ",\n"
+           "  \"dropped_samples\": " +
+           std::to_string(dropped) +
+           ",\n"
+           "  \"charts\": " +
+           std::to_string(charts) +
+           ",\n"
+           "  \"live_clients\": " +
+           std::to_string(live_clients) +
+           "\n"
+           "}";
+}
+
+void write_status(const fs::path& dir, const std::string& json) {
     const fs::path path = dir / "status.json";
     fs::path tmp = path;
     tmp += ".tmp";
     {
         std::ofstream out(tmp, std::ios::trunc);
         if (!out) return;
-        char audio[32];
-        std::snprintf(audio, sizeof audio, "%.1f", audio_s);
-        out << "{\n"
-            << "  \"updated_utc\": \"" << utc_text(now_unix()) << "\",\n"
-            << "  \"input\": \"" << owfax::engine::json_escape(input) << "\",\n"
-            << "  \"state\": \"" << state << "\",\n"
-            << "  \"current\": \"" << owfax::engine::json_escape(stem) << "\",\n"
-            << "  \"audio_s\": " << audio << ",\n"
-            << "  \"queued_samples\": " << queued << ",\n"
-            << "  \"overruns\": " << overruns << ",\n"
-            << "  \"dropped_samples\": " << dropped << ",\n"
-            << "  \"charts\": " << charts << "\n"
-            << "}\n";
+        out << json << "\n";
     }
     std::error_code ec;
     fs::rename(tmp, path, ec);
+}
+
+/// Live message for the WebSocket /api/v1/live (format: docs/api/openapi.yaml).
+std::string event_json(const owfax::wefax::StreamEvent& e, const std::string& stem) {
+    using Kind = owfax::wefax::StreamEvent::Kind;
+    using owfax::engine::json_escape;
+    const std::string head = "{\"type\": \"";
+    const std::string s = "\", \"stem\": \"" + json_escape(stem) + "\"";
+    switch (e.kind) {
+        case Kind::kStart:
+            return head + "start" + s + ", \"ioc\": " + std::to_string(static_cast<int>(e.ioc)) +
+                   ", \"start\": \"" +
+                   (e.apt_start      ? "apt"
+                    : e.signal_start ? "signal"
+                                     : "forced") +
+                   "\"}";
+        case Kind::kLocked:
+            return head + "lock" + s + ", \"clock_ppm\": " + fmt("%.2f", e.clock_ppm) +
+                   ", \"tuning_offset_hz\": " + fmt("%.1f", e.tuning_offset_hz) +
+                   ", \"phasing_found\": " + (e.phasing_found ? "true" : "false") + "}";
+        case Kind::kLine:
+            return head + "line" + s + ", \"index\": " + std::to_string(e.line_index) +
+                   ", \"width\": " + std::to_string(e.pixels.size()) +
+                   ", \"quality\": " + fmt("%.3f", static_cast<double>(e.quality)) +
+                   ", \"pixels\": \"" +
+                   owfax::net::base64_encode(e.pixels.data(), e.pixels.size()) + "\"}";
+        case Kind::kComplete:
+            return head + "complete" + s + ", \"discarded\": " + (e.discarded ? "true" : "false") +
+                   ", \"lines\": " + std::to_string(e.final ? e.final->image.height : 0) + "}";
+    }
+    return "{}";
 }
 
 int run(const Options& o) {
@@ -310,6 +406,28 @@ int run(const Options& o) {
 
     owfax::engine::Receiver rx(rate, o.rx, t0);
     rx.log = [&](const std::string& m) { journal(m); };
+
+    std::unique_ptr<owfax::net::Api> api;
+    std::unique_ptr<owfax::net::HttpServer> server;
+    bool status_dirty = true;
+    if (o.http_port > 0) {
+        owfax::net::ApiConfig ac;
+        ac.charts_dir = o.rx.output_dir;
+        ac.catalog_dir = o.catalog_dir;
+        ac.web_dir = o.web_dir;
+        ac.input = input;
+        api = std::make_unique<owfax::net::Api>(ac);
+        owfax::net::HttpServer::Options so;
+        so.bind = o.http_bind;
+        so.port = o.http_port;
+        server = std::make_unique<owfax::net::HttpServer>(so, api->handler());
+        journal("http: API and web interface on port " + std::to_string(server->port()) + " (" +
+                o.http_bind + "), local network clients only");
+    }
+    rx.on_event = [&](const owfax::wefax::StreamEvent& e, const std::string& stem) {
+        if (e.kind != owfax::wefax::StreamEvent::Kind::kLine) status_dirty = true;
+        if (api) api->publish(event_json(e, stem));
+    };
     if (o.force_start) rx.force_start();
 
     // Up to 10 minutes of audio waiting for the decoder before the oldest is dropped.
@@ -338,6 +456,16 @@ int run(const Options& o) {
 
     std::size_t processed = 0;
     std::size_t charts = 0;
+    auto update_status = [&](const std::string& state, const std::string& stem) {
+        const std::string json =
+            status_json(input, state, stem, static_cast<double>(processed) / rate, queue.size(),
+                        source->overruns(), dropped.load(), charts, api ? api->live_clients() : 0);
+        write_status(o.rx.output_dir, json);
+        if (api) {
+            api->set_status(json);
+            api->publish("{\"type\": \"status\", \"status\": " + json + "}");
+        }
+    };
     std::size_t reported_drop = 0;
     std::size_t reported_overruns = 0;
     auto last_status = std::chrono::steady_clock::now() - std::chrono::seconds(10);
@@ -371,18 +499,22 @@ int run(const Options& o) {
             journal("warning: audio overrun (" + std::to_string(reported_overruns) + ")");
         }
         const auto now = std::chrono::steady_clock::now();
-        if (now - last_status >= std::chrono::seconds(5)) {
+        if (status_dirty || now - last_status >= std::chrono::seconds(5)) {
             last_status = now;
-            write_status(o.rx.output_dir, input, rx.receiving() ? "receiving" : "listening",
-                         rx.current_stem(), static_cast<double>(processed) / rate, queue.size(),
-                         source->overruns(), dropped.load(), charts);
+            status_dirty = false;
+            update_status(rx.receiving() ? "receiving" : "listening", rx.current_stem());
         }
     }
     capture.join();
     rx.finish();
     charts += rx.take_completed().size();
-    write_status(o.rx.output_dir, input, "stopped", "", static_cast<double>(processed) / rate, 0,
-                 source->overruns(), dropped.load(), charts);
+    update_status("stopped", "");
+    if (server && o.keep_serving && !g_stop.load()) {
+        journal("end of input: " + std::to_string(charts) +
+                " chart(s); API still served until stopped");
+        while (!g_stop.load()) std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    if (server) server->stop();
     if (!capture_error.empty()) {
         journal("error: " + capture_error);
         return 1;

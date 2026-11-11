@@ -91,6 +91,18 @@ paths:
         "200": { description: "`{\"token\", \"expires_in\"}`" }
         "400": { description: Too short }
         "401": { description: No session, or wrong current password }
+  /api/v1/restart:
+    post:
+      summary: Restart owfaxd (skipper session), e.g. to use a new audio input
+      description: |
+        owfaxd stops between two charts, never during a reception; its service
+        manager (systemd user service, tools/station) starts it again. Without a
+        service manager it just stops.
+      security: [{ skipper: [] }]
+      responses:
+        "200": { description: "`{\"restarting\": true}`" }
+        "401": { description: No valid skipper session }
+        "404": { description: Not available (no --config) }
   /api/v1/diagnostics:
     get:
       summary: Host, hardware tier, audio inputs and options (UI-007)

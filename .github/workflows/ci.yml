@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Syntax
-        run: bash -n tools/capture/*.sh tools/capture/tests/*.sh
+        run: bash -n tools/capture/*.sh tools/capture/tests/*.sh tools/station/*.sh
       - name: Band-change guard (spec CAT-009)
         run: bash tools/capture/tests/test_band_guard.sh
 

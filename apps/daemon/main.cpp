@@ -510,6 +510,7 @@ int run(Options o) {
     std::mutex options_mutex;
     std::mutex pending_mutex;
     std::optional<owfax::net::StationSettings> pending;  // changed, not applied yet
+    std::atomic<bool> restart_requested{false};          // from the web interface
     std::function<void(const owfax::wefax::StreamEvent&, const std::string&)> on_event;
     auto make_receiver = [&](std::int64_t start_utc) {
         auto r = std::make_unique<owfax::engine::Receiver>(rate, o.rx, start_utc);
@@ -550,6 +551,8 @@ int run(Options o) {
             std::lock_guard<std::mutex> lock(pending_mutex);
             pending = s;  // applied by the decoding loop between two charts
         };
+        // A service manager (systemd, BG-005) starts owfaxd again after it stops.
+        ac.on_restart = [&] { restart_requested.store(true); };
         api = std::make_unique<owfax::net::Api>(ac);
         owfax::net::HttpServer::Options so;
         so.bind = o.http_bind;
@@ -642,6 +645,12 @@ int run(Options o) {
         for (const auto& c : rx->take_completed()) {
             ++charts;
             (void)c;
+        }
+        // Restart asked from the web interface (new audio input): stop cleanly, but
+        // never in the middle of a chart.
+        if (restart_requested.load() && !rx->receiving() && !g_stop.load()) {
+            journal("restart requested from the web interface: stopping between two charts");
+            g_stop.store(true);
         }
         // Settings changed in the web interface: applied between two charts, never
         // during a reception (a new receiver, its clock continuing the stream's).

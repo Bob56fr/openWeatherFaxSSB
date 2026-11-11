@@ -206,6 +206,10 @@ Response Api::handle(const Request& request) {
             if (request.method == "POST") return password(request);
             return error(405, "password: POST");
         }
+        if (parts.size() == 3 && parts[2] == "restart") {
+            if (request.method == "POST") return restart(request);
+            return error(405, "restart: POST");
+        }
         if (!read) return error(405, "this endpoint is read only");
         if (parts.size() == 3 && parts[2] == "info") return info();
         if (parts.size() == 3 && parts[2] == "diagnostics") return diagnostics();
@@ -295,6 +299,15 @@ Response Api::session(const Request& request) {
     return Response::json("{\"token\": " + json_quote(sessions_.open()) + ", \"expires_in\": " +
                           std::to_string(std::chrono::seconds(Sessions::kLifetime).count()) +
                           "}\n");
+}
+
+Response Api::restart(const Request& request) {
+    if (!config_.on_restart || !config_.settings) {
+        return error(404, "restart from the web interface is not available");
+    }
+    if (!sessions_.valid(bearer(request))) return error(401, "skipper login required");
+    config_.on_restart();
+    return Response::json("{\"restarting\": true}\n");
 }
 
 Response Api::password(const Request& request) {

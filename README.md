@@ -85,6 +85,8 @@ curl -O "http://192.168.1.19:8080/api/v1/charts/20261110T0735Z_GYA/raw.png?level
 
 Les images sont stockées sans perte (PNG 8 bits compressé, référence DSP-030). Pour l'affichage sur un téléphone en Wi-Fi, `?levels=16` sert une version à 16 niveaux de gris en pleine résolution, environ 3,5 fois plus légère, visuellement identique sur une carte.
 
+Service au démarrage (Linux, sans droits administrateur) : `tools/station/install-user-service.sh` installe `owfaxd` comme service systemd utilisateur (interface sur le port 8080, réglages dans `~/.config/owfax/owfaxd.json`, cartes dans `~/owfax-corpus/decoded`). systemd le relance s'il s'arrête : redémarrage demandé depuis l'interface (nouvelle entrée audio) ou carte son perdue. Pour un démarrage au boot sans session ouverte : `sudo loginctl enable-linger $USER` une fois. Le service occupe la carte son : `systemctl --user stop owfaxd` avant une session de capture de labo sur la même carte.
+
 Avec CMake ≥ 3.21, des presets sont disponibles : `cmake --preset dev`, `msvc-x64`, `msvc-x86`, `linux-armhf`, `android-arm64`, `android-armv7` (voir [CMakePresets.json](CMakePresets.json)).
 
 ## Structure du dépôt
@@ -99,6 +101,7 @@ apps/daemon/ owfaxd, moteur de réception en tâche de fond
 tests/       Tests unitaires (sans dépendance externe)
 cmake/       Modules CMake et toolchains de cross-compilation
 catalog/     Catalogue des stations (horaires, fréquences, sources)
+tools/       Captures de labo, corpus, service systemd (tools/station)
 docs/        Spécification, journal de développement, API (OpenAPI)
 ```
 

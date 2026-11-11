@@ -149,5 +149,7 @@
   "setup.next": "Suivant",
   "setup.finish": "Enregistrer",
   "setup.done": "Configuration enregistrée. Les réglages s'appliquent à la prochaine carte.",
-  "setup.done_restart": "Configuration enregistrée. La nouvelle entrée audio prendra effet au prochain démarrage d'owfaxd."
+  "setup.done_restart": "Configuration enregistrée. La nouvelle entrée audio prendra effet au prochain démarrage d'owfaxd.",
+  "skipper.restart": "Redémarrer owfaxd maintenant",
+  "skipper.restarting": "owfaxd va redémarrer entre deux cartes ; la page se reconnectera d'elle-même. Sans service systemd, il s'arrête simplement."
 }

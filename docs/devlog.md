@@ -252,3 +252,17 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   jusqu'au fichier de configuration (station dwd-pinneberg, libellé DDH3, 850 Hz).
 - « Zone de navigation » : pas encore, le catalogue ne compte que deux stations ; le
   filtre par zone viendra avec un catalogue plus fourni.
+
+### Service systemd (BG-005, BG-006)
+
+- `tools/station/install-user-service.sh` : service systemd utilisateur, sans root
+  (pas de sudo sans mot de passe sur le minix). `Restart=always`, 10 s : systemd
+  relance owfaxd après un redémarrage demandé depuis l'interface ou une carte son
+  perdue. Démarrage au boot sans session : `sudo loginctl enable-linger` (à faire
+  par l'administrateur).
+- `POST /api/v1/restart` (skipper) et bouton « Redémarrer owfaxd maintenant » quand une
+  nouvelle entrée audio attend : arrêt propre entre deux cartes, jamais pendant une
+  réception.
+- Le service occupe la carte son du TRX : à arrêter avant une session de capture de
+  labo (`systemctl --user stop owfaxd`). Installé sur le minix mais laissé désactivé :
+  au choix du propriétaire de la station.

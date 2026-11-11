@@ -190,6 +190,8 @@ OWFAX_TEST(settings_api_flow) {
     cfg.charts_dir = dir.string();
     cfg.settings = &store;
     cfg.running_input = "alsa:default";
+    int restarts = 0;
+    cfg.on_restart = [&] { ++restarts; };
     cfg.on_settings = [&](const StationSettings& s) {
         ++applied;
         last = s;
@@ -236,6 +238,10 @@ OWFAX_TEST(settings_api_flow) {
                      R"({"version": 2, "settings": {"shift_hz": 5000}})", token)
                     .status == 400);
     OWFAX_CHECK(applied == 1);
+
+    // Restart (new audio input) only for the skipper.
+    OWFAX_CHECK(call(port, "POST", "/api/v1/restart", "{}").status == 401);
+    OWFAX_CHECK(call(port, "POST", "/api/v1/restart", "{}", token).status == 200 && restarts == 1);
 
     // The settings file is not a chart.
     OWFAX_CHECK(call(port, "GET", "/api/v1/charts", "").body.find("pbkdf2") == std::string::npos);

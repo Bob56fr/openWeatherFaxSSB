@@ -20,6 +20,7 @@
 //   PUT /api/v1/settings                      change them (skipper session, UI-002/004)
 //   POST /api/v1/session, DELETE …            skipper login / logout
 //   POST /api/v1/password                     create (first time) or change it
+//   POST /api/v1/restart                      restart between two charts (skipper)
 //   GET /…                                    web interface (static files)
 // Only GET and HEAD are read-only; every change needs a skipper session (NFR-006).
 
@@ -49,6 +50,9 @@ struct ApiConfig {
     std::function<void(const StationSettings&)> on_settings;
     /// Input URI in use, to tell whether a changed input needs a restart.
     std::string running_input;
+    /// Asks owfaxd to stop between two charts, so that its service manager starts it
+    /// again (new audio input). Null: no restart from the web interface.
+    std::function<void()> on_restart;
 };
 
 class Api {
@@ -84,6 +88,7 @@ private:
     Response settings_put(const Request& request);
     Response session(const Request& request);
     Response password(const Request& request);
+    Response restart(const Request& request);
     std::string bearer(const Request& request) const;
     Response settings_reply(bool logged_in, int status = 200);
 

@@ -149,5 +149,7 @@
   "setup.next": "Next",
   "setup.finish": "Save",
   "setup.done": "Setup saved. The settings apply from the next chart.",
-  "setup.done_restart": "Setup saved. The new audio input takes effect at the next start of owfaxd."
+  "setup.done_restart": "Setup saved. The new audio input takes effect at the next start of owfaxd.",
+  "skipper.restart": "Restart owfaxd now",
+  "skipper.restarting": "owfaxd will restart between two charts; this page reconnects by itself. Without a systemd service it just stops."
 }

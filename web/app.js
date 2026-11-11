@@ -736,6 +736,7 @@
     choices.forEach(function (v) { f.input.appendChild(new Option(v, v)); });
     f.input.value = s.input || d.running_input;
     $('input-help').textContent = d.restart_required ? t('skipper.restart_needed') : t('skipper.input_help');
+    $('restart').hidden = !d.restart_required;
   }
 
   async function onCreate(ev) {
@@ -1016,6 +1017,12 @@
     $('form-settings').addEventListener('submit', onSave);
     $('form-password').addEventListener('submit', onPassword);
     $('logout').addEventListener('click', onLogout);
+    $('restart').addEventListener('click', async function () {
+      const r = await call('POST', '/restart');
+      if (r.status === 200) message('skipper.restarting');
+      else if (r.status === 401) { setToken(''); renderSkipper(); message('skipper.expired', null, true); }
+      else message('skipper.error', { e: r.data.error || r.status }, true);
+    });
     $('zoom-toggle').addEventListener('click', function () {
       state.chart.fit = !state.chart.fit;
       showChartImage();

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 openWeatherFaxSSB contributors
+#
+# owfaxd as a systemd user service (spec BG-005): starts with the user manager, at
+# boot when lingering is enabled (loginctl enable-linger), and starts again after
+# any stop: a restart asked from the web interface (new audio input), or a lost
+# sound card (BG-006). Receive only: owfaxd never talks to the transceiver.
+# Written by tools/station/install-user-service.sh from this template.
+
+[Unit]
+Description=openWeatherFaxSSB reception engine (receive only)
+Documentation=https://github.com/Bob56fr/openWeatherFaxSSB
+
+[Service]
+Type=simple
+WorkingDirectory="@REPO@"
+ExecStart="@OWFAXD@" --config "@CONFIG@" --input "@INPUT@" --out "@CHARTS@" --journal "@JOURNAL@" --http @PORT@ --web "@REPO@/web" --catalog "@REPO@/catalog/stations"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -68,6 +68,11 @@ sed -e "s|@REPO@|$(esc "$REPO")|g" -e "s|@OWFAXD@|$(esc "$OWFAXD")|g" \
     -e "s|@CHARTS@|$(esc "$CHARTS")|g" -e "s|@JOURNAL@|$(esc "$JOURNAL")|g" \
     -e "s|@PORT@|$PORT|g" "$HERE/owfaxd.service.in" > "$UNIT"
 
+if command -v systemd-analyze >/dev/null &&
+   ! systemd-analyze --user verify "$UNIT" 2>&1 | sed "s|^|  |"; then
+  echo "unit file rejected by systemd-analyze, not enabled: $UNIT" >&2
+  exit 1
+fi
 systemctl --user daemon-reload
 systemctl --user enable owfaxd.service
 if [[ $START == 1 ]]; then

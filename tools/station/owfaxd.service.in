@@ -13,7 +13,7 @@ Documentation=https://github.com/Bob56fr/openWeatherFaxSSB
 
 [Service]
 Type=simple
-WorkingDirectory="@REPO@"
+WorkingDirectory=@REPO@
 ExecStart="@OWFAXD@" --config "@CONFIG@" --input "@INPUT@" --out "@CHARTS@" --journal "@JOURNAL@" --http @PORT@ --web "@REPO@/web" --catalog "@REPO@/catalog/stations"
 Restart=always
 RestartSec=10

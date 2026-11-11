@@ -225,7 +225,9 @@ OWFAX_TEST(settings_api_flow) {
         R"({"version": )" + std::to_string(static_cast<int>(v)) +
         R"(, "settings": {"label": "DDH3", "shift_hz": 850, "input": "alsa:hw:1"}})";
     OWFAX_CHECK(call(port, "PUT", "/api/v1/settings", change).status == 401);
-    OWFAX_CHECK(call(port, "PUT", "/api/v1/settings", change, "0" + token.substr(1)).status == 401);
+    OWFAX_CHECK(call(port, "PUT", "/api/v1/settings", change,
+                     std::string(1, token[0] == '0' ? '1' : '0') + token.substr(1))
+                    .status == 401);
     r = call(port, "PUT", "/api/v1/settings", change, token);
     OWFAX_CHECK(r.status == 200 && applied == 1 && last.label == "DDH3" && last.shift_hz == 850);
     OWFAX_CHECK(r.body.find("\"restart_required\": true") != std::string::npos);

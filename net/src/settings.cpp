@@ -47,14 +47,14 @@ std::string hash_password(const std::string& password, const std::string& salt_h
 
 bool StationSettings::operator==(const StationSettings& o) const {
     return label == o.label && shift_hz == o.shift_hz && start_without_apt == o.start_without_apt &&
-           enhanced == o.enhanced && input == o.input;
+           enhanced == o.enhanced && input == o.input && station == o.station;
 }
 
 std::string settings_json(const StationSettings& s) {
     return "{\"label\": " + json_quote(s.label) + ", \"shift_hz\": " + number_text(s.shift_hz) +
            ", \"start_without_apt\": " + (s.start_without_apt ? "true" : "false") +
            ", \"enhanced\": " + (s.enhanced ? "true" : "false") +
-           ", \"input\": " + json_quote(s.input) + "}";
+           ", \"input\": " + json_quote(s.input) + ", \"station\": " + json_quote(s.station) + "}";
 }
 
 std::optional<StationSettings> settings_from_json(const Json& j, const StationSettings& base,
@@ -98,6 +98,14 @@ std::optional<StationSettings> settings_from_json(const Json& j, const StationSe
             return std::nullopt;
         }
         s.input = v->string;
+    }
+    if (const Json* v = j.get("station")) {
+        // Catalogue id ("dwd-pinneberg"), or empty for none.
+        if (!v->is(Json::Type::kString) || (!v->string.empty() && !label_ok(v->string))) {
+            error = "station: a catalogue id such as dwd-pinneberg";
+            return std::nullopt;
+        }
+        s.station = v->string;
     }
     return s;
 }

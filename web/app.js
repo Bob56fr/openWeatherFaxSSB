@@ -550,25 +550,29 @@
 
   function hzToX(hz, maxHz, width) { return (hz / maxHz) * width; }
 
+  /** Level meter and advice (UI-003 audio level check); `prefix` selects the meter. */
+  function renderLevel(m, prefix) {
+    const pct = function (db) { return Math.max(0, Math.min(100, (db + 60) / 60 * 100)); };
+    const rms = $(prefix + 'meter-rms');
+    rms.style.width = pct(m.rms_dbfs) + '%';
+    $(prefix + 'meter-peak').style.left = 'calc(' + pct(m.peak_dbfs) + '% - 3px)';
+    let advice = 'diag.level_ok';
+    rms.className = '';
+    if (m.clipped > 0 || m.peak_dbfs > -1) { advice = 'diag.level_clip'; rms.className = 'high'; }
+    else if (m.rms_dbfs < -50) { advice = 'diag.level_low'; rms.className = 'low'; }
+    $(prefix + 'level-text').textContent = t('diag.level_value', {
+      rms: number(m.rms_dbfs, 1), peak: number(m.peak_dbfs, 1),
+    }) + ' — ' + t(advice);
+  }
+
   function onSpectrum(m) {
+    if (currentView() === 'setup') renderLevel(m, 'setup-');
     if (currentView() !== 'diag') return;
     $('spectrum-wait').hidden = true;
     const bin = atob(m.bands);
     const n = bin.length;
     const span = m.db_max - m.db_min;
-
-    // Level (UI-003 audio level check).
-    const pct = function (db) { return Math.max(0, Math.min(100, (db + 60) / 60 * 100)); };
-    const rms = $('meter-rms');
-    rms.style.width = pct(m.rms_dbfs) + '%';
-    $('meter-peak').style.left = 'calc(' + pct(m.peak_dbfs) + '% - 3px)';
-    let advice = 'diag.level_ok';
-    rms.className = '';
-    if (m.clipped > 0 || m.peak_dbfs > -1) { advice = 'diag.level_clip'; rms.className = 'high'; }
-    else if (m.rms_dbfs < -50) { advice = 'diag.level_low'; rms.className = 'low'; }
-    $('level-text').textContent = t('diag.level_value', {
-      rms: number(m.rms_dbfs, 1), peak: number(m.peak_dbfs, 1),
-    }) + ' — ' + t(advice);
+    renderLevel(m, '');
 
     // Spectrum.
     const sc = $('spectrum');
@@ -796,12 +800,160 @@
     renderSkipper();
   }
 
+  // ------------------------------------------------- setup assistant (UI-003)
+
+  const setup = { step: 1, last: 6, settings: null, version: 0, passwordSet: false, input: '', station: null };
+
+  function setupMessage(key, vars, isError) {
+    const m = $('setup-message');
+    if (!key) { m.hidden = true; return; }
+    m.textContent = t(key, vars);
+    m.className = 'notice' + (isError ? ' error' : '');
+    m.hidden = false;
+  }
+
+  async function setupLoad() {
+    const r = await call('GET', '/settings');
+    if (r.status === 404) {
+      setupMessage('skipper.unavailable', null, true);
+      return false;
+    }
+    setup.settings = r.data.settings || {};
+    setup.version = r.data.version;
+    setup.passwordSet = !!r.data.password_set;
+    setup.loggedIn = !!r.data.logged_in;
+    setup.running = r.data.running_input;
+    if (!setup.passwordSet) setToken('');
+    return true;
+  }
+
+  async function renderSetupStep() {
+    document.querySelectorAll('.setup-step').forEach(function (d) {
+      d.hidden = Number(d.getAttribute('data-step')) !== setup.step;
+    });
+    const steps = $('setup-steps');
+    steps.textContent = '';
+    for (let i = 1; i <= setup.last; ++i) {
+      steps.appendChild(el('li', i === setup.step ? 'current' : (i < setup.step ? 'done' : ''), String(i)));
+    }
+    $('setup-back').disabled = setup.step === 1;
+    $('setup-next').textContent = t(setup.step === setup.last ? 'setup.finish' : 'setup.next');
+    pressed('[data-lang]', 'data-lang', state.lang);
+
+    if (setup.step === 2) {
+      const logged = setup.passwordSet && setup.loggedIn;
+      $('setup-pw-text').textContent = t(!setup.passwordSet ? 'skipper.create_help'
+        : logged ? 'setup.pw_done' : 'skipper.login_help');
+      $('setup-pw-current').hidden = !setup.passwordSet || logged;
+      $('setup-pw-new').hidden = setup.passwordSet;
+      $('setup-pw-confirm').hidden = setup.passwordSet;
+    } else if (setup.step === 3) {
+      let inputs = [];
+      try { inputs = ((await getJSON(API + '/diagnostics')).inputs || []).map(function (x) { return x.uri; }); }
+      catch (e) { /* none */ }
+      const sel = $('setup-input');
+      const choices = [setup.input || setup.settings.input, setup.running].concat(inputs)
+        .filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+      sel.textContent = '';
+      choices.forEach(function (v) { sel.appendChild(new Option(v, v)); });
+      sel.value = setup.input || setup.settings.input || setup.running;
+      $('setup-input-note').textContent = t('setup.input_now', { input: setup.running || '?' });
+    } else if (setup.step === 5) {
+      const box = $('setup-stations');
+      box.textContent = '';
+      let stations = [];
+      try { stations = await getJSON(API + '/stations'); } catch (e) { /* no catalogue */ }
+      if (!stations.length) box.appendChild(el('p', 'empty', t('schedule.empty')));
+      const current = setup.station ? setup.station.id : setup.settings.station;
+      stations.forEach(function (s) {
+        const label = el('label', 'check');
+        const radio = el('input');
+        radio.type = 'radio';
+        radio.name = 'station';
+        radio.value = s.id;
+        radio.checked = s.id === current;
+        radio.addEventListener('change', function () { setup.station = s; });
+        if (radio.checked) setup.station = s;
+        label.appendChild(radio);
+        const w = s.wefax || {};
+        const freqs = (w.frequencies || []).map(function (f) { return number(f.assigned_khz, f.assigned_khz % 1 ? 1 : 0); });
+        label.appendChild(el('span', '', (s.name || s.id) + ' — ' + freqs.join(' / ') + ' kHz — ' +
+          t('skipper.shift').toLowerCase() + ' ' + (w.shift_hz || 800) + ' Hz'));
+        box.appendChild(label);
+      });
+    } else if (setup.step === 6) {
+      const table = $('setup-summary');
+      table.textContent = '';
+      const st = setup.station;
+      [
+        ['settings.language', state.lang === 'fr' ? 'Français' : 'English'],
+        ['setup.s2', t(setup.passwordSet ? 'yes' : 'no')],
+        ['skipper.input', setup.input || setup.settings.input || setup.running || '?'],
+        ['setup.s5', st ? (st.name || st.id) : '—'],
+        ['skipper.shift', (st && st.wefax && st.wefax.shift_hz ? st.wefax.shift_hz : setup.settings.shift_hz) + ' Hz'],
+      ].forEach(function (r) {
+        const tr = el('tr');
+        tr.appendChild(el('th', '', t(r[0])));
+        tr.appendChild(el('td', '', r[1]));
+        table.appendChild(tr);
+      });
+    }
+  }
+
+  /** Validates the current step; true to go on. */
+  async function setupLeave() {
+    setupMessage(null);
+    if (setup.step === 2) {
+      const f = $('setup-pw');
+      if (!setup.passwordSet) {
+        if (f.new.value.length < 8) { setupMessage('setup.pw_short', null, true); return false; }
+        if (f.new.value !== f.confirm.value) { setupMessage('skipper.mismatch', null, true); return false; }
+        const r = await call('POST', '/password', { new: f.new.value });
+        if (r.status !== 200) { setupMessage('skipper.error', { e: r.data.error || r.status }, true); return false; }
+        setToken(r.data.token);
+      } else if (!setup.loggedIn) {
+        const r = await call('POST', '/session', { password: f.current.value });
+        if (r.status === 429) { setupMessage('skipper.locked', null, true); return false; }
+        if (r.status !== 200) { setupMessage('skipper.wrong', null, true); return false; }
+        setToken(r.data.token);
+      }
+      f.reset();
+      await setupLoad();
+      return setup.loggedIn;
+    }
+    if (setup.step === 3) setup.input = $('setup-input').value;
+    if (setup.step === 6) {
+      const st = setup.station;
+      const s = { input: setup.input || setup.settings.input };
+      if (st) {
+        s.station = st.id;
+        if (st.wefax && st.wefax.shift_hz) s.shift_hz = st.wefax.shift_hz;
+        const f = (st.wefax && st.wefax.frequencies) || [];
+        s.label = (f.length && f[0].callsign ? f[0].callsign : st.id).replace(/[^A-Za-z0-9_.-]/g, '');
+      }
+      const r = await call('PUT', '/settings', { version: setup.version, settings: s });
+      if (r.status === 409) { await setupLoad(); setupMessage('skipper.conflict', null, true); return false; }
+      if (r.status !== 200) { setupMessage('skipper.error', { e: r.data.error || r.status }, true); return false; }
+      setupMessage(r.data.restart_required ? 'setup.done_restart' : 'setup.done');
+      return false;  // stay on the summary with the message
+    }
+    return true;
+  }
+
+  async function startSetup() {
+    setup.step = 1;
+    setup.station = null;
+    setup.input = '';
+    setupMessage(null);
+    if (await setupLoad()) renderSetupStep();
+  }
+
   // ------------------------------------------------------------------ routing
 
   function currentView() {
     const h = location.hash.replace(/^#/, '');
     if (h.indexOf('chart/') === 0) return 'chart';
-    return ['live', 'charts', 'schedule', 'diag', 'settings'].indexOf(h) >= 0 ? h : 'live';
+    return ['live', 'charts', 'schedule', 'diag', 'settings', 'setup'].indexOf(h) >= 0 ? h : 'live';
   }
 
   function route() {
@@ -817,6 +969,7 @@
     if (view === 'chart') renderChart(decodeURIComponent(location.hash.slice('#chart/'.length)));
     if (view === 'diag') { $('spectrum-wait').hidden = false; renderDiag(); }
     if (view === 'settings') renderSkipper();
+    if (view === 'setup') startSetup();
     if (view === 'schedule') {
       renderSchedule();
       state.scheduleTimer = setInterval(renderSchedule, 30000);
@@ -850,6 +1003,14 @@
       state.chart.light = !state.chart.light;
       showChartImage();
     });
+    $('setup-back').addEventListener('click', function () {
+      if (setup.step > 1) { setup.step -= 1; setupMessage(null); renderSetupStep(); }
+    });
+    $('setup-next').addEventListener('click', async function () {
+      if (!(await setupLeave())) return;
+      if (setup.step < setup.last) { setup.step += 1; renderSetupStep(); }
+    });
+    $('setup-pw').addEventListener('submit', function (ev) { ev.preventDefault(); $('setup-next').click(); });
     $('form-create').addEventListener('submit', onCreate);
     $('form-login').addEventListener('submit', onLogin);
     $('form-settings').addEventListener('submit', onSave);
@@ -877,4 +1038,8 @@
   setLanguage(load('lang', browserLang));
   about();
   connect();
+  // First use: no skipper password yet → open the setup assistant (UI-003).
+  call('GET', '/settings').then(function (r) {
+    if (r.status === 200 && !r.data.password_set && currentView() === 'live') location.hash = '#setup';
+  }).catch(function () { /* offline */ });
 }());

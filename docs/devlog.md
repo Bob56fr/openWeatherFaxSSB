@@ -241,3 +241,14 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   aléa du système (RtlGenRandom, /dev/urandom), lecteur JSON à profondeur bornée.
   Serveur : POST / PUT / DELETE avec corps ≤ 64 Kio. Seuls les fichiers nommés comme
   une carte sont servis depuis le dossier des cartes.
+
+### Assistant de première configuration (UI-003)
+
+- S'ouvre au premier usage (pas encore de mot de passe skipper) et depuis Réglages :
+  langue, mot de passe (création ou connexion), entrée audio, niveau du son en direct
+  (même indicateur et mêmes conseils que le diagnostic), station suivie choisie dans
+  le catalogue (règle l'écart noir – blanc et le libellé, nouveau réglage `station`),
+  résumé puis enregistrement. Vérifié avec Chrome headless sur une réception rejouée,
+  jusqu'au fichier de configuration (station dwd-pinneberg, libellé DDH3, 850 Hz).
+- « Zone de navigation » : pas encore, le catalogue ne compte que deux stations ; le
+  filtre par zone viendra avec un catalogue plus fourni.

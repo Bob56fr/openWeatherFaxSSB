@@ -30,6 +30,7 @@ struct StationSettings {
     bool start_without_apt = true;  ///< Start on a fax signal whose APT was missed.
     bool enhanced = true;           ///< Also write the enhanced image.
     std::string input;              ///< Audio input URI (applied at the next start).
+    std::string station;            ///< Station followed (catalogue id), set by the assistant.
 
     bool operator==(const StationSettings& o) const;
 };

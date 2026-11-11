@@ -87,6 +87,59 @@
     <p><a class="button" href="/api/v1/journal" download data-i18n="diag.journal"></a></p>
   </section>
 
+  <!-- First setup assistant (UI-003). -->
+  <section id="view-setup" class="view" hidden>
+    <h1 data-i18n="setup.title"></h1>
+    <ol class="steps" id="setup-steps" aria-hidden="true"></ol>
+    <div class="setup-step" data-step="1">
+      <h2 data-i18n="setup.s1"></h2>
+      <p data-i18n="setup.s1_text"></p>
+      <div class="group" role="group">
+        <button type="button" data-lang="fr">Français</button>
+        <button type="button" data-lang="en">English</button>
+      </div>
+    </div>
+    <div class="setup-step" data-step="2">
+      <h2 data-i18n="setup.s2"></h2>
+      <p id="setup-pw-text" class="meta"></p>
+      <form id="setup-pw" class="stack">
+        <label id="setup-pw-current"><span data-i18n="skipper.password"></span>
+          <input type="password" name="current" autocomplete="current-password"></label>
+        <label id="setup-pw-new"><span data-i18n="skipper.new_password"></span>
+          <input type="password" name="new" autocomplete="new-password" minlength="8"></label>
+        <label id="setup-pw-confirm"><span data-i18n="skipper.confirm_password"></span>
+          <input type="password" name="confirm" autocomplete="new-password" minlength="8"></label>
+      </form>
+    </div>
+    <div class="setup-step" data-step="3">
+      <h2 data-i18n="setup.s3"></h2>
+      <p class="meta" data-i18n="setup.s3_text"></p>
+      <form class="stack"><label><span data-i18n="skipper.input"></span>
+        <select id="setup-input"></select></label></form>
+      <p class="meta" id="setup-input-note"></p>
+    </div>
+    <div class="setup-step" data-step="4">
+      <h2 data-i18n="setup.s4"></h2>
+      <p class="meta" data-i18n="setup.s4_text"></p>
+      <div class="meter" aria-hidden="true"><div id="setup-meter-rms"></div><div id="setup-meter-peak"></div></div>
+      <p id="setup-level-text" class="meta" data-i18n="diag.waiting"></p>
+    </div>
+    <div class="setup-step" data-step="5">
+      <h2 data-i18n="setup.s5"></h2>
+      <p class="meta" data-i18n="setup.s5_text"></p>
+      <div id="setup-stations" class="stack"></div>
+    </div>
+    <div class="setup-step" data-step="6">
+      <h2 data-i18n="setup.s6"></h2>
+      <table id="setup-summary" class="report"></table>
+    </div>
+    <p id="setup-message" class="notice" role="status" hidden></p>
+    <div class="group setup-nav">
+      <button type="button" id="setup-back" data-i18n="setup.back"></button>
+      <button type="button" id="setup-next" data-i18n="setup.next"></button>
+    </div>
+  </section>
+
   <section id="view-settings" class="view" hidden>
     <h1 data-i18n="settings.title"></h1>
     <fieldset>
@@ -115,6 +168,7 @@
 
     <!-- Station settings, skipper only (UI-002, UI-004, NFR-006). -->
     <h2 data-i18n="skipper.title"></h2>
+    <p><a class="button" href="#setup" data-i18n="setup.open"></a></p>
     <p id="skipper-unavailable" class="empty" data-i18n="skipper.unavailable" hidden></p>
     <p id="skipper-message" class="notice" role="status" hidden></p>
 

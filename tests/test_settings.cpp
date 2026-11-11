@@ -163,6 +163,10 @@ OWFAX_TEST(settings_file_versions_and_password) {
     OWFAX_CHECK(!bad && !why.empty());
     OWFAX_CHECK(!settings_from_json(*parse_json(R"({"shift_hz": 50})"), defaults, why));
     OWFAX_CHECK(!settings_from_json(*parse_json(R"({"enhanced": "yes"})"), defaults, why));
+    const auto st =
+        settings_from_json(*parse_json(R"({"station": "dwd-pinneberg"})"), defaults, why);
+    OWFAX_CHECK(st && st->station == "dwd-pinneberg" && st->label == defaults.label);
+    OWFAX_CHECK(!settings_from_json(*parse_json(R"({"station": "../x"})"), defaults, why));
     {
         std::ofstream out(path);
         out << "{not json";

@@ -47,7 +47,8 @@ paths:
           description: |
             `{"version", "password_set", "logged_in", "restart_required",
             "running_input", "settings": {"label", "shift_hz", "start_without_apt",
-            "enhanced", "input"}}`
+            "enhanced", "input", "station"}}`; `station` = catalogue id chosen in the
+            setup assistant (UI-003).
           content:
             application/json:
               schema: { type: object }

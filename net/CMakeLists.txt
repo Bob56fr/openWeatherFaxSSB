@@ -9,7 +9,10 @@ find_package(Threads REQUIRED)
 add_library(owfax_net
   src/api.cpp
   src/encoding.cpp
+  src/crypto.cpp
   src/http_server.cpp
+  src/json.cpp
+  src/settings.cpp
   src/socket.cpp)
 add_library(owfax::net ALIAS owfax_net)
 target_include_directories(owfax_net PUBLIC
@@ -17,6 +20,6 @@ target_include_directories(owfax_net PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(owfax_net PUBLIC owfax::core Threads::Threads)
 if(WIN32)
-  target_link_libraries(owfax_net PUBLIC ws2_32)
+  target_link_libraries(owfax_net PUBLIC ws2_32 advapi32)
 endif()
 owfax_set_target_options(owfax_net)

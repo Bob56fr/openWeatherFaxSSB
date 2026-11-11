@@ -223,3 +223,21 @@ locaux, pas de récepteurs distants ; 4) d'accord en option, avec un bouton Avan
   carte, synchronisation (phasage) » ou « signal fax détecté sans APT », « décodage de
   la carte, N lignes », puis « Carte reçue » en vert pendant 15 s. Pas de clignotement
   si le système demande moins d'animations.
+
+### Paramètres de la station, mot de passe skipper (UI-002, UI-004, NFR-006)
+
+- `owfaxd --config <fichier>` : libellé, écart noir – blanc, démarrage sans APT, image
+  améliorée et entrée audio, modifiables dans l'onglet Réglages. Le fichier fait foi
+  au démarrage ; la ligne de commande ne sert qu'à le créer.
+- Mot de passe skipper : choisi au premier usage depuis le réseau local, stocké en
+  PBKDF2-HMAC-SHA256 (100 000 itérations, sel aléatoire du système), jamais en clair
+  ni dans le journal. Session de 12 h (jeton aléatoire de 256 bits), 30 s de blocage
+  après 5 échecs, toutes les autres sessions fermées au changement de mot de passe.
+- Verrou d'édition (UI-004) : chaque version des réglages est numérotée ; un écran qui
+  enregistre une version périmée reçoit 409 et les valeurs à jour.
+- Application entre deux cartes, jamais pendant une réception (nouveau récepteur dont
+  l'horloge continue celle du flux) ; l'entrée audio au prochain démarrage.
+- Sans dépendance : SHA-256, HMAC, PBKDF2 (vecteurs FIPS 180-4, RFC 4231, RFC 7914),
+  aléa du système (RtlGenRandom, /dev/urandom), lecteur JSON à profondeur bornée.
+  Serveur : POST / PUT / DELETE avec corps ≤ 64 Kio. Seuls les fichiers nommés comme
+  une carte sont servis depuis le dossier des cartes.

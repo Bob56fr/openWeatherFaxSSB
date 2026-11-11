@@ -7,8 +7,9 @@ info:
   description: |
     Served by the reception engine (`owfaxd --http <port>`) on the local network
     only: clients outside loopback, 10/8, 172.16/12, 192.168/16 and 169.254/16 get
-    403 (spec NFR-006). Read only for now (GET and HEAD); settings will require the
-    skipper password (UI-002). Receive only: no endpoint can make the radio transmit.
+    403 (spec NFR-006). Everything is readable; changing the station settings needs a
+    skipper session (UI-002): `Authorization: Bearer <token>` from POST /api/v1/session.
+    Receive only: no endpoint can make the radio transmit.
 
     Every error has a JSON body `{"error": "<message>"}`.
   license:
@@ -35,6 +36,60 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+  /api/v1/settings:
+    get:
+      summary: Station settings, their version, whether a skipper password exists
+      description: |
+        Available when owfaxd runs with `--config <file>` (404 otherwise).
+        `restart_required`: a new audio input was chosen, used at the next start.
+      responses:
+        "200":
+          description: |
+            `{"version", "password_set", "logged_in", "restart_required",
+            "running_input", "settings": {"label", "shift_hz", "start_without_apt",
+            "enhanced", "input"}}`
+          content:
+            application/json:
+              schema: { type: object }
+    put:
+      summary: Change the settings (skipper session)
+      description: |
+        Body `{"version": <the version read>, "settings": {...}}` (members not given
+        keep their value). 409 with the current settings if someone else changed them
+        meanwhile (UI-004). Applied between two charts, never during a reception.
+      security: [{ skipper: [] }]
+      responses:
+        "200": { description: Saved; same body as GET }
+        "400": { description: Invalid value (the error says which) }
+        "401": { description: No valid skipper session }
+        "409": { description: Version conflict; body = current settings }
+  /api/v1/session:
+    post:
+      summary: Skipper login
+      description: |
+        Body `{"password": "…"}`. Returns `{"token", "expires_in"}` (12 h). After 5
+        failures, 429 for 30 s. 409 while no password exists yet.
+      responses:
+        "200": { description: Logged in }
+        "401": { description: Wrong password }
+        "409": { description: No skipper password yet }
+        "429": { description: Too many failures, see Retry-After }
+    delete:
+      summary: Skipper logout (ends the session of the bearer token)
+      responses:
+        "200": { description: Logged out }
+  /api/v1/password:
+    post:
+      summary: Create the skipper password (first setup) or change it
+      description: |
+        First setup: `{"new": "…"}` (8 characters at least), allowed while no password
+        exists, and logs in. Change: skipper session and `{"current": "…", "new": "…"}`;
+        every other session is closed. Stored as PBKDF2-HMAC-SHA256 (100 000
+        iterations, random salt), never in clear.
+      responses:
+        "200": { description: "`{\"token\", \"expires_in\"}`" }
+        "400": { description: Too short }
+        "401": { description: No session, or wrong current password }
   /api/v1/diagnostics:
     get:
       summary: Host, hardware tier, audio inputs and options (UI-007)
@@ -179,6 +234,10 @@ paths:
         "200": { description: File }
         "404": { $ref: "#/components/responses/NotFound" }
 components:
+  securitySchemes:
+    skipper:
+      type: http
+      scheme: bearer
   parameters:
     Stem:
       name: stem

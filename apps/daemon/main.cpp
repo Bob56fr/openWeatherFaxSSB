@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -39,6 +40,7 @@
 #include "owfax/net/api.hpp"
 #include "owfax/net/encoding.hpp"
 #include "owfax/net/http_server.hpp"
+#include "owfax/net/settings.hpp"
 
 namespace {
 
@@ -62,6 +64,7 @@ struct Options {
     owfax::io::InputOptions in;
     owfax::engine::ReceiverConfig rx;
     std::string journal;
+    std::string config;  // settings file edited from the web interface (skipper)
     std::optional<std::int64_t> start_unix;
     double duration_s = 0.0;  // 0 = until the end of the stream or a signal
     bool force_start = false;
@@ -195,6 +198,9 @@ void usage() {
         "  --duration <s>        stop after this many seconds of audio\n"
         "  --start-unix <t>      UTC time of the first sample (default: now)\n"
         "  --journal <file>      also append the journal to this file\n"
+        "  --config <file>       settings and skipper password, edited from the web\n"
+        "                        interface; its values override the options above\n"
+        "                        (created at the first change; keep it outside --out)\n"
         "\n"
         "Local HTTP API (read only, local network clients only):\n"
         "  --http <port>         serve the API and web interface on this port\n"
@@ -272,6 +278,9 @@ bool parse(int argc, char** argv, Options& o) {
         } else if (a == "--start-unix") {
             if ((v = value(i)) == nullptr) return false;
             o.start_unix = std::strtoll(v, nullptr, 10);
+        } else if (a == "--config") {
+            if ((v = value(i)) == nullptr) return false;
+            o.config = v;
         } else if (a == "--journal") {
             if ((v = value(i)) == nullptr) return false;
             o.journal = v;
@@ -298,7 +307,7 @@ bool parse(int argc, char** argv, Options& o) {
             return false;
         }
     }
-    if (o.input.empty()) {
+    if (o.input.empty() && o.config.empty()) {
         std::fputs("owfaxd: --input is required (see --help)\n", stderr);
         return false;
     }
@@ -458,8 +467,38 @@ std::string event_json(const owfax::wefax::StreamEvent& e, const std::string& st
     return "{}";
 }
 
-int run(const Options& o) {
+/// Settings chosen in the web interface (--config file) override the command line;
+/// the audio input only at start-up, and only if one was chosen there.
+void apply_settings(Options& o, const owfax::net::StationSettings& s, bool with_input) {
+    o.rx.label = s.label;
+    o.rx.options.shift_hz = s.shift_hz;
+    o.rx.options.start_without_apt = s.start_without_apt;
+    o.rx.enhanced = s.enhanced;
+    if (with_input && !s.input.empty()) o.input = s.input;
+}
+
+int run(Options o) {
     Journal journal(o.journal);
+    std::unique_ptr<owfax::net::SettingsStore> store;
+    if (!o.config.empty()) {
+        owfax::net::StationSettings seed;  // first start: the command line seeds the file
+        seed.label = o.rx.label;
+        seed.shift_hz = o.rx.options.shift_hz;
+        seed.start_without_apt = o.rx.options.start_without_apt;
+        seed.enhanced = o.rx.enhanced;
+        seed.input = o.input;
+        store = std::make_unique<owfax::net::SettingsStore>(o.config, seed);
+        std::string err;
+        if (!store->load(err)) throw std::runtime_error(err);
+        apply_settings(o, store->settings(), true);
+        journal("settings: " + o.config +
+                (store->password_set() ? ""
+                                       : " (no skipper password yet: create it in the web "
+                                         "interface, Settings tab)"));
+    }
+    if (o.input.empty()) {
+        throw std::runtime_error("no audio input: give --input, or choose one in the settings");
+    }
     auto source = owfax::io::open_input(o.input, o.in);
     const int rate = source->sample_rate();
     const std::string input = source->description();
@@ -467,8 +506,20 @@ int run(const Options& o) {
     journal("owfaxd " + std::string(owfax::build_info().version) + " - input " + input +
             ", output " + o.rx.output_dir);
 
-    owfax::engine::Receiver rx(rate, o.rx, t0);
-    rx.log = [&](const std::string& m) { journal(m); };
+    // o is also read by the HTTP threads (diagnostics) while settings are applied.
+    std::mutex options_mutex;
+    std::mutex pending_mutex;
+    std::optional<owfax::net::StationSettings> pending;  // changed, not applied yet
+    std::function<void(const owfax::wefax::StreamEvent&, const std::string&)> on_event;
+    auto make_receiver = [&](std::int64_t start_utc) {
+        auto r = std::make_unique<owfax::engine::Receiver>(rate, o.rx, start_utc);
+        r->log = [&](const std::string& m) { journal(m); };
+        r->on_event = [&](const owfax::wefax::StreamEvent& e, const std::string& stem) {
+            on_event(e, stem);
+        };
+        return r;
+    };
+    auto rx = make_receiver(t0);
 
     std::unique_ptr<owfax::net::Api> api;
     std::unique_ptr<owfax::net::HttpServer> server;
@@ -489,7 +540,16 @@ int run(const Options& o) {
         ac.web_dir = o.web_dir;
         ac.input = input;
         ac.journal_path = o.journal;
-        ac.diagnostics = [&o, input, rate] { return diagnostics_json(o, input, rate); };
+        ac.diagnostics = [&o, &options_mutex, input, rate] {
+            std::lock_guard<std::mutex> lock(options_mutex);
+            return diagnostics_json(o, input, rate);
+        };
+        ac.settings = store.get();
+        ac.running_input = o.input;
+        ac.on_settings = [&](const owfax::net::StationSettings& s) {
+            std::lock_guard<std::mutex> lock(pending_mutex);
+            pending = s;  // applied by the decoding loop between two charts
+        };
         api = std::make_unique<owfax::net::Api>(ac);
         owfax::net::HttpServer::Options so;
         so.bind = o.http_bind;
@@ -499,7 +559,7 @@ int run(const Options& o) {
                 o.http_bind + "), local network clients only");
     }
     Phase phase;
-    rx.on_event = [&](const owfax::wefax::StreamEvent& e, const std::string& stem) {
+    on_event = [&](const owfax::wefax::StreamEvent& e, const std::string& stem) {
         using Kind = owfax::wefax::StreamEvent::Kind;
         switch (e.kind) {
             case Kind::kStart:
@@ -514,7 +574,7 @@ int run(const Options& o) {
         if (e.kind != Kind::kLine) status_dirty = true;
         if (api) api->publish(event_json(e, stem));
     };
-    if (o.force_start) rx.force_start();
+    if (o.force_start) rx->force_start();
 
     // Up to 10 minutes of audio waiting for the decoder before the oldest is dropped.
     BlockQueue queue(static_cast<std::size_t>(rate) * 600U, !source->is_live());
@@ -566,7 +626,7 @@ int run(const Options& o) {
         if (auto block = queue.pop(std::chrono::milliseconds(200))) {
             // After a stop request, audio still queued is discarded: stop promptly.
             if (!interrupted) {
-                rx.push(block->data(), block->size());
+                rx->push(block->data(), block->size());
                 if (api && api->live_clients() > 0) {
                     auto frame = spectrum.push(block->data(), block->size());
                     while (frame) {
@@ -579,9 +639,36 @@ int run(const Options& o) {
         } else if (queue.closed_and_empty()) {
             break;
         }
-        for (const auto& c : rx.take_completed()) {
+        for (const auto& c : rx->take_completed()) {
             ++charts;
             (void)c;
+        }
+        // Settings changed in the web interface: applied between two charts, never
+        // during a reception (a new receiver, its clock continuing the stream's).
+        if (!rx->receiving()) {
+            std::optional<owfax::net::StationSettings> p;
+            {
+                std::lock_guard<std::mutex> lock(pending_mutex);
+                p.swap(pending);
+            }
+            if (p) {
+                {
+                    std::lock_guard<std::mutex> lock(options_mutex);
+                    apply_settings(o, *p, false);
+                }
+                rx->finish();
+                charts += rx->take_completed().size();
+                rx = make_receiver(
+                    t0 + static_cast<std::int64_t>(processed / static_cast<std::size_t>(rate)));
+                journal("settings applied: label " + o.rx.label + ", shift " +
+                        fmt("%.0f", o.rx.options.shift_hz) + " Hz, start without APT " +
+                        (o.rx.options.start_without_apt ? "on" : "off") + ", enhanced image " +
+                        (o.rx.enhanced ? "on" : "off") +
+                        (!p->input.empty() && p->input != o.input
+                             ? "; new audio input " + p->input + " at the next start"
+                             : ""));
+                status_dirty = true;
+            }
         }
         if (dropped.load() > reported_drop) {
             reported_drop = dropped.load();
@@ -596,12 +683,12 @@ int run(const Options& o) {
         if (status_dirty || now - last_status >= std::chrono::seconds(5)) {
             last_status = now;
             status_dirty = false;
-            update_status(rx.receiving() ? "receiving" : "listening", rx.current_stem());
+            update_status(rx->receiving() ? "receiving" : "listening", rx->current_stem());
         }
     }
     capture.join();
-    rx.finish();
-    charts += rx.take_completed().size();
+    rx->finish();
+    charts += rx->take_completed().size();
     update_status("stopped", "");
     if (server && o.keep_serving && !g_stop.load()) {
         journal("end of input: " + std::to_string(charts) +

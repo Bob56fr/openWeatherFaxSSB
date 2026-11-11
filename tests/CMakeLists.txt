@@ -12,6 +12,7 @@ add_executable(owfax_tests
   test_engine.cpp
   test_files.cpp
   test_net.cpp
+  test_settings.cpp
   test_wefax_decode.cpp
   test_stream_decoder.cpp
   test_wefax_params.cpp)

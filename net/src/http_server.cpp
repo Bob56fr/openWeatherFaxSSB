@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <utility>
 
 #include "owfax/net/encoding.hpp"
@@ -13,6 +14,7 @@ namespace owfax::net {
 namespace {
 
 constexpr std::size_t kMaxHeaderBytes = 8192;
+constexpr std::size_t kMaxBodyBytes = 65536;
 constexpr int kRequestTimeoutMs = 10000;
 constexpr int kPollMs = 200;
 constexpr int kSendTimeoutMs = 10000;
@@ -61,7 +63,10 @@ int parse_head(const std::string& head, Request& r) {
         if (colon == std::string::npos || colon == 0) return 400;
         r.headers[lower(h.substr(0, colon))] = trim(h.substr(colon + 1));
     }
-    if (r.method != "GET" && r.method != "HEAD") return 405;
+    if (r.method != "GET" && r.method != "HEAD" && r.method != "POST" && r.method != "PUT" &&
+        r.method != "DELETE") {
+        return 405;
+    }
     return 0;
 }
 
@@ -107,8 +112,13 @@ const char* status_text(int status) {
         case 304: return "Not Modified";
         case 400: return "Bad Request";
         case 403: return "Forbidden";
+        case 401: return "Unauthorized";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
+        case 409: return "Conflict";
+        case 411: return "Length Required";
+        case 413: return "Payload Too Large";
+        case 429: return "Too Many Requests";
         case 408: return "Request Timeout";
         case 426: return "Upgrade Required";
         case 431: return "Request Header Fields Too Large";
@@ -324,6 +334,35 @@ void HttpServer::serve(TcpSocket socket, std::string peer, bool allowed) {
     if (const int status = parse_head(data.substr(0, end), req); status != 0) {
         reply(Response::text(status, status_text(status)), false);
         return;
+    }
+    // Request body (settings, login): Content-Length required, small.
+    if (req.method == "POST" || req.method == "PUT" || req.method == "DELETE") {
+        const std::string cl = req.header("content-length");
+        if (cl.empty() && req.method != "DELETE") {
+            reply(Response::text(411, "Content-Length required"), false);
+            return;
+        }
+        char* stop = nullptr;
+        const unsigned long long len = cl.empty() ? 0ULL : std::strtoull(cl.c_str(), &stop, 10);
+        if (!cl.empty() && (stop == nullptr || *stop != '\0')) {
+            reply(Response::text(400, "bad Content-Length"), false);
+            return;
+        }
+        if (len > kMaxBodyBytes) {
+            reply(Response::text(413, "request body too large"), false);
+            return;
+        }
+        req.body = data.substr(end + 4);
+        while (req.body.size() < len) {
+            if (stop_.load() || std::chrono::steady_clock::now() > deadline) {
+                reply(Response::text(408, "request timeout"), false);
+                return;
+            }
+            const long n = socket.receive(buf, sizeof buf, kPollMs);
+            if (n == kClosed || n == kError) return;
+            if (n > 0) req.body.append(buf, static_cast<std::size_t>(n));
+        }
+        req.body.resize(static_cast<std::size_t>(len));
     }
     const bool head_only = req.method == "HEAD";
     Response resp;

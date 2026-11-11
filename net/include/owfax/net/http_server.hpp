@@ -2,8 +2,9 @@
 // Copyright (C) 2026 openWeatherFaxSSB contributors
 //
 // Minimal HTTP/1.1 server with WebSocket push, for the local web interface
-// (spec ARC-002, DSP-007). Deliberately small and read-only for now: GET and HEAD
-// only, bounded request size and time, a fixed number of connections, and clients
+// (spec ARC-002, DSP-007). Deliberately small: GET and HEAD, plus POST / PUT /
+// DELETE with a body of at most 64 KiB for the settings; bounded request size and
+// time, a fixed number of connections, and clients
 // accepted from local network addresses only (NFR-006). One thread per connection.
 //
 // Written for the project rather than taken from a library so that it builds on
@@ -28,11 +29,12 @@
 namespace owfax::net {
 
 struct Request {
-    std::string method;                          ///< "GET" or "HEAD".
+    std::string method;                          ///< GET, HEAD, POST, PUT or DELETE.
     std::string path;                            ///< Percent-decoded, starts with '/'.
     std::string query;                           ///< Raw text after '?', if any.
     std::map<std::string, std::string> headers;  ///< Names in lower case.
     std::string peer;                            ///< Client IPv4 address.
+    std::string body;                            ///< POST / PUT body (at most 64 KiB).
 
     std::string header(const std::string& lower_name) const;
 };

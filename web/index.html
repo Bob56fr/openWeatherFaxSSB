@@ -112,6 +112,60 @@
         <button type="button" data-sound="off" data-i18n="settings.sound_off"></button>
       </div>
     </fieldset>
+
+    <!-- Station settings, skipper only (UI-002, UI-004, NFR-006). -->
+    <h2 data-i18n="skipper.title"></h2>
+    <p id="skipper-unavailable" class="empty" data-i18n="skipper.unavailable" hidden></p>
+    <p id="skipper-message" class="notice" role="status" hidden></p>
+
+    <form id="form-create" class="stack" hidden>
+      <p class="meta" data-i18n="skipper.create_help"></p>
+      <label><span data-i18n="skipper.new_password"></span>
+        <input type="password" name="new" autocomplete="new-password" minlength="8" required></label>
+      <label><span data-i18n="skipper.confirm_password"></span>
+        <input type="password" name="confirm" autocomplete="new-password" minlength="8" required></label>
+      <button type="submit" data-i18n="skipper.create"></button>
+    </form>
+
+    <form id="form-login" class="stack" hidden>
+      <p class="meta" data-i18n="skipper.login_help"></p>
+      <label><span data-i18n="skipper.password"></span>
+        <input type="password" name="password" autocomplete="current-password" required></label>
+      <button type="submit" data-i18n="skipper.login"></button>
+    </form>
+
+    <form id="form-settings" class="stack" hidden>
+      <label><span data-i18n="skipper.label"></span>
+        <input type="text" name="label" maxlength="40" pattern="[A-Za-z0-9_.\-]+" required>
+        <small class="meta" data-i18n="skipper.label_help"></small></label>
+      <label><span data-i18n="skipper.shift"></span>
+        <select name="shift_hz">
+          <option value="800">800 Hz</option>
+          <option value="850">850 Hz (DWD)</option>
+        </select></label>
+      <label class="check"><input type="checkbox" name="start_without_apt">
+        <span data-i18n="skipper.auto_start"></span></label>
+      <label class="check"><input type="checkbox" name="enhanced">
+        <span data-i18n="skipper.enhanced"></span></label>
+      <label><span data-i18n="skipper.input"></span>
+        <select name="input"></select>
+        <small class="meta" id="input-help"></small></label>
+      <div class="group">
+        <button type="submit" data-i18n="skipper.save"></button>
+        <button type="button" id="logout" data-i18n="skipper.logout"></button>
+      </div>
+    </form>
+
+    <form id="form-password" class="stack" hidden>
+      <h3 data-i18n="skipper.change_password"></h3>
+      <label><span data-i18n="skipper.current_password"></span>
+        <input type="password" name="current" autocomplete="current-password" required></label>
+      <label><span data-i18n="skipper.new_password"></span>
+        <input type="password" name="new" autocomplete="new-password" minlength="8" required></label>
+      <label><span data-i18n="skipper.confirm_password"></span>
+        <input type="password" name="confirm" autocomplete="new-password" minlength="8" required></label>
+      <button type="submit" data-i18n="skipper.change"></button>
+    </form>
   </section>
 </main>
 

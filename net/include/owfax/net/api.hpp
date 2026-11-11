@@ -16,7 +16,12 @@
 //                                             status, spectrum (input audio)
 //   GET /api/v1/diagnostics                   host, hardware tier, inputs (UI-007)
 //   GET /api/v1/journal                       journal, for bug reports (UI-007)
+//   GET /api/v1/settings                      station settings, version, password set?
+//   PUT /api/v1/settings                      change them (skipper session, UI-002/004)
+//   POST /api/v1/session, DELETE …            skipper login / logout
+//   POST /api/v1/password                     create (first time) or change it
 //   GET /…                                    web interface (static files)
+// Only GET and HEAD are read-only; every change needs a skipper session (NFR-006).
 
 #pragma once
 
@@ -26,6 +31,7 @@
 #include <string>
 
 #include "owfax/net/http_server.hpp"
+#include "owfax/net/settings.hpp"
 
 namespace owfax::net {
 
@@ -37,6 +43,12 @@ struct ApiConfig {
     std::string journal_path;      ///< Journal served at /api/v1/journal (empty = none).
     /// JSON object for /api/v1/diagnostics (host, inputs, options), built on request.
     std::function<std::string()> diagnostics;
+    /// Skipper settings (UI-002). Null: settings are not editable (no --config).
+    SettingsStore* settings = nullptr;
+    /// Called after the settings changed (on the HTTP thread): apply them.
+    std::function<void(const StationSettings&)> on_settings;
+    /// Input URI in use, to tell whether a changed input needs a restart.
+    std::string running_input;
 };
 
 class Api {
@@ -68,11 +80,18 @@ private:
     Response diagnostics() const;
     Response journal() const;
     Response live();
+    Response settings_get(const Request& request);
+    Response settings_put(const Request& request);
+    Response session(const Request& request);
+    Response password(const Request& request);
+    std::string bearer(const Request& request) const;
+    Response settings_reply(bool logged_in, int status = 200);
 
     ApiConfig config_;
     mutable std::mutex mutex_;
     std::string status_;
     std::set<WebSocket*> clients_;
+    Sessions sessions_;
 };
 
 /// True for a chart stem or station id usable as a file name: letters, digits,

@@ -3,6 +3,8 @@
 
 #include "owfax/net/api.hpp"
 
+#include <chrono>
+
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -16,6 +18,7 @@
 #include "owfax/build_info.hpp"
 #include "owfax/engine/receiver.hpp"
 #include "owfax/image/gray_image.hpp"
+#include "owfax/net/json.hpp"
 
 namespace owfax::net {
 namespace {
@@ -40,8 +43,18 @@ Response error(int status, const std::string& message) {
     return Response::json("{\"error\": \"" + json_escape(message) + "\"}\n", status);
 }
 
+/// "20261110T0735Z_…": only chart files are ever served from the charts directory
+/// (never status.json, nor a settings file placed there by mistake).
+bool is_chart_stem(const std::string& s) {
+    if (s.size() < 16 || s[8] != 'T' || s[13] != 'Z' || s[14] != '_') return false;
+    for (std::size_t i = 0; i < 13; ++i) {
+        if (i != 8 && (s[i] < '0' || s[i] > '9')) return false;
+    }
+    return is_safe_name(s);
+}
+
 /// JSON files of a directory (names without extension), sorted.
-std::vector<std::string> json_stems(const std::string& dir) {
+std::vector<std::string> json_stems(const std::string& dir, bool charts_only) {
     std::vector<std::string> out;
     std::error_code ec;
     if (dir.empty() || !fs::is_directory(dir, ec)) return out;
@@ -50,6 +63,7 @@ std::vector<std::string> json_stems(const std::string& dir) {
         if (p.extension() != ".json" || !e.is_regular_file(ec)) continue;
         const std::string stem = p.stem().string();
         if (stem == "status" || !is_safe_name(stem)) continue;
+        if (charts_only && !is_chart_stem(stem)) continue;
         out.push_back(stem);
     }
     std::sort(out.begin(), out.end());
@@ -175,8 +189,24 @@ std::size_t Api::live_clients() const {
 
 Response Api::handle(const Request& request) {
     const auto parts = split_path(request.path);
+    const bool read = request.method == "GET" || request.method == "HEAD";
     if (parts.size() >= 2 && parts[0] == "api") {
         if (parts[1] != "v1") return error(404, "unknown API version (this server: v1)");
+        // Endpoints that change something (skipper only, NFR-006).
+        if (parts.size() == 3 && parts[2] == "settings") {
+            if (read) return settings_get(request);
+            if (request.method == "PUT") return settings_put(request);
+            return error(405, "settings: GET or PUT");
+        }
+        if (parts.size() == 3 && parts[2] == "session") {
+            if (request.method == "POST" || request.method == "DELETE") return session(request);
+            return error(405, "session: POST (log in) or DELETE (log out)");
+        }
+        if (parts.size() == 3 && parts[2] == "password") {
+            if (request.method == "POST") return password(request);
+            return error(405, "password: POST");
+        }
+        if (!read) return error(405, "this endpoint is read only");
         if (parts.size() == 3 && parts[2] == "info") return info();
         if (parts.size() == 3 && parts[2] == "diagnostics") return diagnostics();
         if (parts.size() == 3 && parts[2] == "journal") return journal();
@@ -192,7 +222,112 @@ Response Api::handle(const Request& request) {
         }
         return error(404, "no such API endpoint: " + request.path);
     }
+    if (!read) return error(405, "the web interface is read only");
     return web(request.path);
+}
+
+// ------------------------------------------------- skipper settings (UI-002/004)
+
+std::string Api::bearer(const Request& request) const {
+    const std::string h = request.header("authorization");
+    return h.rfind("Bearer ", 0) == 0 ? h.substr(7) : std::string();
+}
+
+Response Api::settings_reply(bool logged_in, int status) {
+    const SettingsStore& st = *config_.settings;
+    const StationSettings s = st.settings();
+    const bool restart = !s.input.empty() && s.input != config_.running_input;
+    return Response::json("{\n  \"version\": " + std::to_string(st.version()) +
+                              ",\n  \"password_set\": " + (st.password_set() ? "true" : "false") +
+                              ",\n  \"logged_in\": " + (logged_in ? "true" : "false") +
+                              ",\n  \"restart_required\": " + (restart ? "true" : "false") +
+                              ",\n  \"running_input\": " + json_quote(config_.running_input) +
+                              ",\n  \"settings\": " + settings_json(s) + "\n}\n",
+                          status);
+}
+
+Response Api::settings_get(const Request& request) {
+    if (!config_.settings) return error(404, "settings are not editable (owfaxd without --config)");
+    return settings_reply(sessions_.valid(bearer(request)));
+}
+
+Response Api::settings_put(const Request& request) {
+    if (!config_.settings) return error(404, "settings are not editable (owfaxd without --config)");
+    if (!sessions_.valid(bearer(request))) return error(401, "skipper login required");
+    const auto body = parse_json(request.body);
+    const Json* version = body ? body->get("version") : nullptr;
+    const Json* values = body ? body->get("settings") : nullptr;
+    if (!version || !version->is(Json::Type::kNumber) || !values) {
+        return error(400, "expected {\"version\": n, \"settings\": {...}}");
+    }
+    std::string why;
+    const auto s = settings_from_json(*values, config_.settings->settings(), why);
+    if (!s) return error(400, why);
+    if (!config_.settings->update(*s, static_cast<std::uint64_t>(version->number))) {
+        // Someone else changed the settings meanwhile (UI-004): send the current ones.
+        return settings_reply(true, 409);
+    }
+    if (config_.on_settings) config_.on_settings(*s);
+    return settings_reply(true);
+}
+
+Response Api::session(const Request& request) {
+    if (!config_.settings) return error(404, "settings are not editable (owfaxd without --config)");
+    if (request.method == "DELETE") {
+        sessions_.close(bearer(request));
+        return Response::json("{\"logged_in\": false}\n");
+    }
+    if (!config_.settings->password_set()) {
+        return error(409, "no skipper password yet: create one first");
+    }
+    if (const long wait = sessions_.locked_for(); wait > 0) {
+        Response r = error(429, "too many failed attempts, wait " + std::to_string(wait) + " s");
+        r.headers.emplace_back("Retry-After", std::to_string(wait));
+        return r;
+    }
+    const auto body = parse_json(request.body);
+    const Json* pw = body ? body->get("password") : nullptr;
+    if (!pw || !pw->is(Json::Type::kString) || !config_.settings->check_password(pw->string)) {
+        sessions_.failed();
+        return error(401, "wrong password");
+    }
+    sessions_.succeeded();
+    return Response::json("{\"token\": " + json_quote(sessions_.open()) + ", \"expires_in\": " +
+                          std::to_string(std::chrono::seconds(Sessions::kLifetime).count()) +
+                          "}\n");
+}
+
+Response Api::password(const Request& request) {
+    if (!config_.settings) return error(404, "settings are not editable (owfaxd without --config)");
+    const auto body = parse_json(request.body);
+    const Json* fresh = body ? body->get("new") : nullptr;
+    if (!fresh || !fresh->is(Json::Type::kString)) return error(400, "expected {\"new\": \"…\"}");
+    std::string token = bearer(request);
+    if (config_.settings->password_set()) {
+        // Changing it: a skipper session and the current password.
+        if (!sessions_.valid(token)) return error(401, "skipper login required");
+        if (const long wait = sessions_.locked_for(); wait > 0) {
+            return error(429, "too many failed attempts, wait " + std::to_string(wait) + " s");
+        }
+        const Json* current = body->get("current");
+        if (!current || !current->is(Json::Type::kString) ||
+            !config_.settings->check_password(current->string)) {
+            sessions_.failed();
+            return error(401, "wrong current password");
+        }
+    }
+    // First time: anyone on the local network may create it (first setup, UI-003).
+    try {
+        config_.settings->set_password(fresh->string);
+    } catch (const std::invalid_argument& e) {
+        return error(400, e.what());
+    }
+    sessions_.succeeded();
+    if (!sessions_.valid(token)) token = sessions_.open();
+    sessions_.close_all_except(token);  // other screens must log in again
+    return Response::json("{\"token\": " + json_quote(token) + ", \"expires_in\": " +
+                          std::to_string(std::chrono::seconds(Sessions::kLifetime).count()) +
+                          "}\n");
 }
 
 Response Api::info() const {
@@ -237,7 +372,7 @@ Response Api::journal() const {
 }
 
 Response Api::charts(const Request& request) const {
-    auto stems = json_stems(config_.charts_dir);
+    auto stems = json_stems(config_.charts_dir, true);
     std::reverse(stems.begin(), stems.end());  // stems start with the UTC time
     const std::size_t limit = query_limit(request.query);
     if (stems.size() > limit) stems.resize(limit);
@@ -246,7 +381,7 @@ Response Api::charts(const Request& request) const {
 
 Response Api::chart(const std::string& stem, const std::string& part,
                     const std::string& query) const {
-    if (!is_safe_name(stem) || stem == "status") return error(404, "no such chart");
+    if (!is_chart_stem(stem)) return error(404, "no such chart");
     const fs::path dir(config_.charts_dir);
     if (part.empty()) {
         const auto text = read_file(dir / (stem + ".json"));
@@ -318,7 +453,8 @@ Response Api::chart(const std::string& stem, const std::string& part,
 Response Api::stations(const std::string& id) const {
     if (config_.catalog_dir.empty()) return error(404, "no station catalogue configured");
     if (id.empty()) {
-        return Response::json(array_of_files(config_.catalog_dir, json_stems(config_.catalog_dir)));
+        return Response::json(
+            array_of_files(config_.catalog_dir, json_stems(config_.catalog_dir, false)));
     }
     if (!is_safe_name(id)) return error(404, "no such station");
     const auto text = read_file(fs::path(config_.catalog_dir) / (id + ".json"));

@@ -252,7 +252,7 @@ OWFAX_TEST(net_api_serves_charts_stations_and_errors) {
 
     r = get(port, "/api/v1/info", "HEAD");
     OWFAX_CHECK(r.status == 200 && r.body.empty());
-    OWFAX_CHECK(get(port, "/api/v1/info", "POST").status == 405);
+    OWFAX_CHECK(get(port, "/api/v1/info", "POST").status == 411);  // no Content-Length
     OWFAX_CHECK(raw_request(port, "nonsense\r\n\r\n").status == 400);
     OWFAX_CHECK(
         raw_request(port, "GET /api/v1/info HTTP/1.1\r\nX: " + std::string(9000, 'a') + "\r\n\r\n")

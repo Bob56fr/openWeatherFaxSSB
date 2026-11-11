@@ -660,6 +660,142 @@
     });
   }
 
+  // --------------------------------------- skipper settings (UI-002, UI-004)
+
+  const skipper = { version: 0, token: '' };
+
+  function token() {
+    try { return window.sessionStorage.getItem('owfax.token') || ''; } catch (e) { return skipper.token; }
+  }
+
+  function setToken(v) {
+    skipper.token = v || '';
+    try {
+      if (v) window.sessionStorage.setItem('owfax.token', v);
+      else window.sessionStorage.removeItem('owfax.token');
+    } catch (e) { /* private mode: kept in memory */ }
+  }
+
+  async function call(method, path, body) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token()) headers.Authorization = 'Bearer ' + token();
+    const r = await fetch(API + path, {
+      method: method, headers: headers, cache: 'no-store',
+      body: body === undefined ? (method === 'GET' ? undefined : '{}') : JSON.stringify(body),
+    });
+    let data = {};
+    try { data = await r.json(); } catch (e) { /* empty body */ }
+    return { status: r.status, data: data };
+  }
+
+  function message(key, vars, isError) {
+    const m = $('skipper-message');
+    m.textContent = t(key, vars);
+    m.className = 'notice' + (isError ? ' error' : '');
+    m.hidden = false;
+  }
+
+  function showForms(which) {
+    ['form-create', 'form-login', 'form-settings', 'form-password'].forEach(function (id) {
+      $(id).hidden = which.indexOf(id) < 0;
+    });
+  }
+
+  async function renderSkipper() {
+    let r;
+    try { r = await call('GET', '/settings'); } catch (e) { return; }
+    $('skipper-unavailable').hidden = r.status !== 404;
+    if (r.status === 404) { showForms([]); return; }
+    const d = r.data;
+    skipper.version = d.version;
+    if (!d.password_set) { setToken(''); showForms(['form-create']); return; }
+    if (!d.logged_in) { setToken(''); showForms(['form-login']); return; }
+    showForms(['form-settings', 'form-password']);
+    const f = $('form-settings');
+    const s = d.settings || {};
+    f.label.value = s.label || '';
+    const shift = String(Math.round(s.shift_hz || 800));
+    if (!Array.prototype.some.call(f.shift_hz.options, function (o) { return o.value === shift; })) {
+      f.shift_hz.appendChild(new Option(shift + ' Hz', shift));
+    }
+    f.shift_hz.value = shift;
+    f.start_without_apt.checked = !!s.start_without_apt;
+    f.enhanced.checked = !!s.enhanced;
+    // Audio inputs: the one in use, the one chosen, and the devices found (UI-007).
+    let inputs = [];
+    try { inputs = ((await getJSON(API + '/diagnostics')).inputs || []).map(function (x) { return x.uri; }); }
+    catch (e) { /* none */ }
+    const choices = [d.running_input, s.input].concat(inputs).filter(function (v, i, a) {
+      return v && a.indexOf(v) === i;
+    });
+    f.input.textContent = '';
+    choices.forEach(function (v) { f.input.appendChild(new Option(v, v)); });
+    f.input.value = s.input || d.running_input;
+    $('input-help').textContent = d.restart_required ? t('skipper.restart_needed') : t('skipper.input_help');
+  }
+
+  async function onCreate(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    if (f.new.value !== f.confirm.value) return message('skipper.mismatch', null, true);
+    const r = await call('POST', '/password', { new: f.new.value });
+    if (r.status !== 200) return message('skipper.error', { e: r.data.error || r.status }, true);
+    setToken(r.data.token);
+    f.reset();
+    message('skipper.created');
+    renderSkipper();
+  }
+
+  async function onLogin(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const r = await call('POST', '/session', { password: f.password.value });
+    f.reset();
+    if (r.status === 429) return message('skipper.locked', null, true);
+    if (r.status !== 200) return message('skipper.wrong', null, true);
+    setToken(r.data.token);
+    $('skipper-message').hidden = true;
+    renderSkipper();
+  }
+
+  async function onSave(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const settings = {
+      label: f.label.value.trim(),
+      shift_hz: Number(f.shift_hz.value),
+      start_without_apt: f.start_without_apt.checked,
+      enhanced: f.enhanced.checked,
+      input: f.input.value,
+    };
+    const r = await call('PUT', '/settings', { version: skipper.version, settings: settings });
+    if (r.status === 401) { setToken(''); renderSkipper(); return message('skipper.expired', null, true); }
+    if (r.status === 409) { renderSkipper(); return message('skipper.conflict', null, true); }
+    if (r.status !== 200) return message('skipper.error', { e: r.data.error || r.status }, true);
+    message(r.data.restart_required ? 'skipper.saved_restart' : 'skipper.saved');
+    renderSkipper();
+  }
+
+  async function onPassword(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    if (f.new.value !== f.confirm.value) return message('skipper.mismatch', null, true);
+    const r = await call('POST', '/password', { current: f.current.value, new: f.new.value });
+    f.reset();
+    if (r.status !== 200) {
+      return message(r.status === 401 ? 'skipper.wrong' : 'skipper.error', { e: r.data.error || r.status }, true);
+    }
+    setToken(r.data.token);
+    message('skipper.changed');
+  }
+
+  async function onLogout() {
+    await call('DELETE', '/session');
+    setToken('');
+    $('skipper-message').hidden = true;
+    renderSkipper();
+  }
+
   // ------------------------------------------------------------------ routing
 
   function currentView() {
@@ -680,6 +816,7 @@
     if (view === 'charts') renderCharts();
     if (view === 'chart') renderChart(decodeURIComponent(location.hash.slice('#chart/'.length)));
     if (view === 'diag') { $('spectrum-wait').hidden = false; renderDiag(); }
+    if (view === 'settings') renderSkipper();
     if (view === 'schedule') {
       renderSchedule();
       state.scheduleTimer = setInterval(renderSchedule, 30000);
@@ -713,6 +850,11 @@
       state.chart.light = !state.chart.light;
       showChartImage();
     });
+    $('form-create').addEventListener('submit', onCreate);
+    $('form-login').addEventListener('submit', onLogin);
+    $('form-settings').addEventListener('submit', onSave);
+    $('form-password').addEventListener('submit', onPassword);
+    $('logout').addEventListener('click', onLogout);
     $('zoom-toggle').addEventListener('click', function () {
       state.chart.fit = !state.chart.fit;
       showChartImage();

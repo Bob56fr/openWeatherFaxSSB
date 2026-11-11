@@ -60,6 +60,9 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` always wins over the display of a component (forms, panels). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   background: var(--bg);
@@ -302,6 +305,23 @@ h2 { font-size: 1.05rem; margin: 18px 0 6px; }
 .slots td.in { white-space: nowrap; color: var(--muted); width: 1%; text-align: right; }
 .slots tr.next td { font-weight: 600; }
 .slots tr.next td.in { color: var(--live); }
+
+.stack { display: grid; gap: 12px; max-width: 520px; margin: 8px 0 22px; }
+.stack label { display: grid; gap: 4px; }
+.stack label.check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.stack input[type="text"], .stack input[type="password"], .stack select {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+.stack input[type="checkbox"] { width: 24px; height: 24px; }
+.stack h3 { font-size: 1rem; margin: 6px 0 0; }
+.notice { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--ok); color: var(--ok); max-width: 520px; }
+.notice.error { border-color: var(--live); color: var(--live); }
 
 fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 16px; padding: 10px 14px 14px; }
 legend { padding: 0 6px; color: var(--muted); }

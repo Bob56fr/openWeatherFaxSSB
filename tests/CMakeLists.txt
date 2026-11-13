@@ -8,6 +8,7 @@ add_executable(owfax_tests
   test_build_info.cpp
   test_capabilities.cpp
   test_corpus.cpp
+  test_disturbance.cpp
   test_dsp.cpp
   test_engine.cpp
   test_files.cpp

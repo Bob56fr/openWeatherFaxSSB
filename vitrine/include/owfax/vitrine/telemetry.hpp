@@ -32,10 +32,25 @@ struct SnrBands {
     double signal_hi_hz = 2400.0;  ///< … white + 100 Hz.
 };
 
+/// Per-second signatures of the audio used to tell a local disturbance (receiver
+/// overload, interference from equipment on board) from natural fading
+/// (docs/VITRINE-WEB.md § 5). They need nothing but the audio: any receiver, SDR or
+/// transceiver, with or without CAT.
+struct AudioFeatures {
+    std::vector<float> clip_fraction;  ///< Samples at or beyond ±0.99.
+    std::vector<float> kurtosis;  ///< E[x⁴]/E[x²]²: FM fax ≈ 1.5, noise ≈ 3, impulses ≫ 3.
+    std::vector<float> flatness;       ///< Spectral flatness 300–2900 Hz: 1 = white noise.
+    std::vector<float> band_fraction;  ///< Power in the WEFAX band / power 300–2900 Hz.
+    /// Strongest repetition of the signal envelope over 2–200 ms (normalised
+    /// autocorrelation, 0 … 1): switching interference (PWM, MPPT) buzzes at its rate.
+    std::vector<float> periodicity;
+};
+
 struct Telemetry {
     std::vector<float> audio_dbfs;    ///< One value per second of audio.
     std::vector<float> snr_db;        ///< Same length; SNR in a 2.5 kHz bandwidth.
     std::vector<float> smeter_db_s9;  ///< Same length, or empty without S-meter readings.
+    AudioFeatures features;           ///< Same length (not published as such).
 };
 
 /// Measures `audio` second by second. `audio_start_unix`: Unix time of its first

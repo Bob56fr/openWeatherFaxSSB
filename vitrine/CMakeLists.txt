@@ -6,6 +6,7 @@
 
 add_library(owfax_vitrine
   src/catalog.cpp
+  src/disturbance.cpp
   src/geo.cpp
   src/package.cpp
   src/telemetry.cpp)

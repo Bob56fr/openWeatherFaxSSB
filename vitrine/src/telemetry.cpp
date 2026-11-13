@@ -106,6 +106,90 @@ float snr_of(const std::vector<double>& p, double bin_hz, const SnrBands& bands)
     return std::clamp(static_cast<float>(db), kSnrMin, kSnrMax);
 }
 
+constexpr double kFlatLoHz = 300.0;  // audio passband used for flatness and band fraction
+constexpr double kFlatHiHz = 2900.0;
+
+float clip_fraction(const float* x, std::size_t n) {
+    std::size_t c = 0;
+    for (std::size_t i = 0; i < n; ++i)
+        if (std::fabs(x[i]) >= 0.99F) ++c;
+    return n ? static_cast<float>(static_cast<double>(c) / static_cast<double>(n)) : 0.0F;
+}
+
+float kurtosis(const float* x, std::size_t n) {
+    if (n < 2) return 0.0F;
+    double mean = 0.0;
+    for (std::size_t i = 0; i < n; ++i) mean += x[i];
+    mean /= static_cast<double>(n);
+    double m2 = 0.0, m4 = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double d = x[i] - mean;
+        m2 += d * d;
+        m4 += d * d * d * d;
+    }
+    m2 /= static_cast<double>(n);
+    m4 /= static_cast<double>(n);
+    return m2 > 1e-20 ? static_cast<float>(m4 / (m2 * m2)) : 0.0F;
+}
+
+/// Envelope (power in 0.5 ms blocks) autocorrelation, best lag between 2 and 200 ms.
+float periodicity(const float* x, std::size_t n, std::size_t rate) {
+    const std::size_t block = std::max<std::size_t>(1, rate / 2000);
+    const std::size_t m = n / block;
+    if (m < 800) return 0.0F;
+    std::vector<double> e(m, 0.0);
+    double mean = 0.0;
+    for (std::size_t k = 0; k < m; ++k) {
+        for (std::size_t i = 0; i < block; ++i) {
+            const double v = x[k * block + i];
+            e[k] += v * v;
+        }
+        mean += e[k];
+    }
+    mean /= static_cast<double>(m);
+    double var = 0.0;
+    for (double& v : e) {
+        v -= mean;
+        var += v * v;
+    }
+    if (var <= 1e-30) return 0.0F;
+    const double block_s = static_cast<double>(block) / static_cast<double>(rate);
+    const auto lag0 = static_cast<std::size_t>(std::ceil(0.002 / block_s));
+    const auto lag1 = std::min(m / 2, static_cast<std::size_t>(0.2 / block_s));
+    double best = 0.0;
+    for (std::size_t lag = lag0; lag <= lag1; ++lag) {
+        double acc = 0.0;
+        for (std::size_t k = 0; k + lag < m; ++k) acc += e[k] * e[k + lag];
+        // Unbiased for the overlap length, normalised by the zero-lag value.
+        acc *= static_cast<double>(m) / static_cast<double>(m - lag);
+        best = std::max(best, acc / var);
+    }
+    return static_cast<float>(std::clamp(best, 0.0, 1.0));
+}
+
+float flatness(const std::vector<double>& p, double bin_hz) {
+    const auto k0 = static_cast<std::size_t>(std::ceil(kFlatLoHz / bin_hz));
+    const auto k1 = std::min(p.size() - 1, static_cast<std::size_t>(kFlatHiHz / bin_hz));
+    double log_sum = 0.0, sum = 0.0;
+    std::size_t n = 0;
+    for (std::size_t k = k0; k <= k1; ++k) {
+        const double v = std::max(p[k], 1e-30);
+        log_sum += std::log(v);
+        sum += v;
+        ++n;
+    }
+    if (n == 0 || sum <= 1e-29 * static_cast<double>(n)) return 0.0F;
+    return static_cast<float>(std::exp(log_sum / static_cast<double>(n)) /
+                              (sum / static_cast<double>(n)));
+}
+
+float band_fraction(const std::vector<double>& p, double bin_hz, const SnrBands& bands) {
+    std::size_t b = 0;
+    const double all = band_sum(p, bin_hz, kFlatLoHz, kFlatHiHz, b);
+    const double in = band_sum(p, bin_hz, bands.signal_lo_hz, bands.signal_hi_hz, b);
+    return all > 1e-30 ? static_cast<float>(in / all) : 0.0F;
+}
+
 bool parse_hms(const std::string& s, int& seconds) {
     int h = 0, m = 0, sec = 0;
     char c1 = 0, c2 = 0;
@@ -162,6 +246,7 @@ Telemetry measure(const audio::AudioBuffer& audio, const SnrBands& bands,
     const double bin_hz = static_cast<double>(rate) / static_cast<double>(fft_n);
 
     Telemetry t;
+    AudioFeatures& f = t.features;
     const std::size_t seconds = (audio.samples.size() + rate - 1) / rate;
     t.audio_dbfs.reserve(seconds);
     t.snr_db.reserve(seconds);
@@ -174,11 +259,19 @@ Telemetry measure(const audio::AudioBuffer& audio, const SnrBands& bands,
         const double ms =
             2.0 * sq / static_cast<double>(std::max<std::size_t>(n, 1));  // sine = 0 dB
         t.audio_dbfs.push_back(ms > 1e-20 ? static_cast<float>(10.0 * std::log10(ms)) : -200.0F);
-        // The last, partial second reuses the previous SNR rather than a noisy estimate.
+        f.clip_fraction.push_back(clip_fraction(x, n));
+        f.kurtosis.push_back(kurtosis(x, n));
+        f.periodicity.push_back(periodicity(x, n, rate));
+        // The last, partial second reuses the previous values rather than noisy estimates.
         if (n < fft_n && !t.snr_db.empty()) {
             t.snr_db.push_back(t.snr_db.back());
+            f.flatness.push_back(f.flatness.back());
+            f.band_fraction.push_back(f.band_fraction.back());
         } else {
-            t.snr_db.push_back(snr_of(welch(x, n, fft_n, window), bin_hz, bands));
+            const auto p = welch(x, n, fft_n, window);
+            t.snr_db.push_back(snr_of(p, bin_hz, bands));
+            f.flatness.push_back(flatness(p, bin_hz));
+            f.band_fraction.push_back(band_fraction(p, bin_hz, bands));
         }
     }
 
@@ -193,8 +286,8 @@ Telemetry measure(const audio::AudioBuffer& audio, const SnrBands& bands,
             if (j + 1 < smeter.size() && static_cast<double>(smeter[j].unix_time) <= when) {
                 const double t0 = static_cast<double>(smeter[j].unix_time);
                 const double t1 = static_cast<double>(smeter[j + 1].unix_time);
-                const double f = t1 > t0 ? (when - t0) / (t1 - t0) : 0.0;
-                v += (smeter[j + 1].db_s9 - smeter[j].db_s9) * std::clamp(f, 0.0, 1.0);
+                const double frac = t1 > t0 ? (when - t0) / (t1 - t0) : 0.0;
+                v += (smeter[j + 1].db_s9 - smeter[j].db_s9) * std::clamp(frac, 0.0, 1.0);
             }
             t.smeter_db_s9.push_back(static_cast<float>(v));
         }

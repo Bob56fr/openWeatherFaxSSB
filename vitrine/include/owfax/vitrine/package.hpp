@@ -15,6 +15,7 @@
 
 #include "owfax/audio/wav.hpp"
 #include "owfax/image/gray_image.hpp"
+#include "owfax/vitrine/disturbance.hpp"
 #include "owfax/vitrine/geo.hpp"
 #include "owfax/vitrine/telemetry.hpp"
 #include "owfax/wefax/decoder.hpp"
@@ -46,9 +47,10 @@ struct ReceiverRef {
 };
 
 struct SelectionRules {
-    double min_quality = 0.60;             ///< PUB-021.
-    std::size_t min_lines = 600;           ///< PUB-020 without APT stop: 5 min at 120 lpm.
-    double max_saturated_fraction = 0.15;  ///< SAT-010 (lot 2: no detector yet).
+    double min_quality = 0.60;         ///< PUB-021.
+    std::size_t min_lines = 600;       ///< PUB-020 without APT stop: 5 min at 120 lpm.
+    double max_local_fraction = 0.15;  ///< SAT-010: image lost to local disturbances.
+    DisturbanceRules disturbance;      ///< SAT-001 … SAT-007.
 };
 
 struct Selection {
@@ -76,7 +78,8 @@ struct Package {
     GrayImage raw;
     std::optional<GrayImage> enhanced;
     wefax::DecodeReport report;  ///< Times relative to `audio` (not to the recording).
-    Telemetry telemetry;
+    Telemetry telemetry;         ///< Measured before muting (PUB-031): the real levels.
+    DisturbanceReport disturbances;
     GreatCircle path;
     std::string daylight;  ///< "day", "night" or "mixed" at the middle of the chart.
     Selection selection;
@@ -91,7 +94,8 @@ Package build_package(const ChartSource& src, const StationRef& station,
                       const std::optional<wefax::DecodeOptions>& enhanced_options);
 
 /// Selection rules PUB-020 … PUB-024 on a decoded chart.
-Selection select(const wefax::DecodeReport& report, std::size_t lines, double saturated_fraction,
+/// `local_fraction`: image lines lost to local disturbances (SAT-010).
+Selection select(const wefax::DecodeReport& report, std::size_t lines, double local_fraction,
                  const StationRef& station, const SelectionRules& rules);
 
 /// Mean of the per-line quality, 0 … 1.

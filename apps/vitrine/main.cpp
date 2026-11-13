@@ -354,6 +354,13 @@ int package(Options& o) {
         }
         std::printf("  %s  %4zu lines  quality %3.0f %%  -> %s\n", p.chart_id.c_str(), p.raw.height,
                     vitrine::mean_quality(p.report) * 100.0, verdict.c_str());
+        for (const auto& z : p.disturbances.zones) {
+            std::string ind;
+            for (const auto& s : z.indicators) ind += " " + s;
+            std::printf("      %s %.0f-%.0f s (lines %zu-%zu)%s:%s\n", vitrine::cause_name(z.cause),
+                        z.start_s, z.end_s, z.first_line, z.last_line,
+                        vitrine::is_local(z.cause) ? ", muted" : "", ind.c_str());
+        }
         if (o.only_publishable && !p.selection.publish) continue;
 
         const fs::path dir = fs::path(o.out) / p.chart_id;

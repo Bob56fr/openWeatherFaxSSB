@@ -14,7 +14,7 @@ Domaines propres à ce document :
 |---|---|
 | `VIT` | Principes généraux de la vitrine |
 | `PUB` | Côté station : sélection, paquet carte, envoi |
-| `SAT` | Détection de la saturation du récepteur par un émetteur de la station |
+| `SAT` | Perturbations locales : saturation du récepteur, parasites du bord |
 | `WPP` | Plugin WordPress : réception, stockage, purge, pages |
 | `PLY` | Lecteur de rediffusion dans le navigateur |
 
@@ -40,7 +40,7 @@ Pourquoi pas le direct :
 
 - Diffusion en direct (streaming ligne par ligne vers le public).
 - Récepteurs distants ou publics : seule la station locale alimente la vitrine.
-- Toute commande d'émission : la vitrine ne fait qu'observer. La détection de saturation (§ 5) est passive, et l'émetteur de la station n'est jamais piloté (NFR-001, CAT-002).
+- Toute commande d'émission : la vitrine ne fait qu'observer. La détection des perturbations (§ 5) est passive, et l'émetteur de la station n'est jamais piloté (NFR-001, CAT-002).
 - Usage opérationnel des cartes : la vitrine est une démonstration (VIT-004).
 
 ---
@@ -51,7 +51,7 @@ Pourquoi pas le direct :
 ┌──────────────────────── Station (minix) ────────────────────────┐
 │ Scheduler ─► IC-7300 / SDR ─► owfaxd ─► carte + son + télémétrie │
 │                                   │                              │
-│                       Sélection (§ 4.1) + saturation (§ 5)       │
+│                       Sélection (§ 4.1) + perturbations (§ 5)   │
 │                                   │ refusée → reste en local     │
 │                       File de publication persistante            │
 └───────────────────────────────────┼──────────────────────────────┘
@@ -107,7 +107,7 @@ Une carte n'est publiée que si toutes les conditions suivantes sont réunies :
 
 - **PUB-020 (DOIT)** — La réception est complète : APT de démarrage, phasage, image, et APT d'arrêt ou durée nominale atteinte.
 - **PUB-021 (DOIT)** — La qualité moyenne des lignes (`line_quality`, DSP-008) est au moins égale à un seuil réglable, par défaut **60 %**.
-- **PUB-022 (DOIT)** — La carte n'est pas refusée pour saturation (SAT-010).
+- **PUB-022 (DOIT)** — La carte n'est pas refusée pour perturbation locale (SAT-010).
 - **PUB-023 (DOIT)** — La station émettrice est autorisée à la publication dans le catalogue (PUB-024).
 - **PUB-024 (DOIT)** — Le catalogue reçoit un bloc `publication` par station : `allowed` (booléen), `attribution` (texte obligatoire à afficher, par exemple « Source : Deutscher Wetterdienst ») et `terms_url`. Si le bloc est absent, la carte n'est **pas publiée**. Les conditions de réutilisation de chaque service météo sont à vérifier avant d'activer une station (§ 10).
 - **PUB-025 (DEVRAIT)** — Mode de modération réglable :
@@ -131,7 +131,7 @@ Chaque paquet est un ensemble de fichiers identifié par `chart_id`, au format `
 Soit **environ 3 à 7 Mo par carte**, dont le son représente les deux tiers. Ces chiffres sont à confirmer sur les premières cartes réelles (PUB-034).
 
 - **PUB-030 (DOIT)** — Le format audio doit se lire sur toutes les cibles de ARC-003, y compris Safari iOS 15, d'où le choix d'AAC-LC en `.m4a`. Opus est possible plus tard en complément, pas à la place.
-- **PUB-031 (DOIT)** — **Le son est rendu muet sur les zones de saturation** (SAT-011). Il est remplacé par un silence de même durée, pour garder la synchronisation. Pendant une saturation, le récepteur peut restituer la modulation de l'émetteur de la station, c'est-à-dire la voix de l'opérateur ou une autre liaison, qui ne doit pas être rediffusée.
+- **PUB-031 (DOIT)** — **Le son est rendu muet sur les zones de perturbation locale** (SAT-011). Il est remplacé par un silence de même durée, pour garder la synchronisation. Pendant une saturation, le récepteur peut restituer la modulation de l'émetteur de la station, c'est-à-dire la voix de l'opérateur ou une autre liaison, qui ne doit pas être rediffusée.
 - **PUB-032 (DOIT)** — L'encodage (WebP, AAC) se fait sur la station. Le WordPress ne transcode rien, puisqu'un hébergement mutualisé n'a pas de ffmpeg.
 - **PUB-033 (DOIT)** — L'image et le son sont **synchronisés** par `meta.json`. On y trouve le décalage dans le son (en secondes) du début de chaque phase (APT de démarrage, phasage, image, APT d'arrêt), ainsi que le décalage de la première ligne et le LPM. Un tableau optionnel `line_offsets_s` est prévu si le rythme réel s'écarte du nominal (slant corrigé).
 - **PUB-034 (DEVRAIT)** — owfaxd journalise la taille réelle de chaque paquet. Le tableau ci-dessus est révisé après une semaine de fonctionnement.
@@ -156,7 +156,7 @@ Champs minimum (**PUB-040, DOIT**) :
   "schedule": { "content": "Schedule part 1", "slot_utc": "14:25" },
   "quality":  { "mean": 0.97, "snr_db_median": 18.5, "lines_bad_fraction": 0.01 },
   "diversity": { "enabled": false, "sources": [] },
-  "saturation": { "zones": [], "fraction": 0.0 },
+  "disturbances": { "detector": "audio-v1", "local_fraction": 0.0, "fading_fraction": 0.0, "zones": [] },
   "sync":     { "apt_start_s": 3.2, "phasing_s": 8.4, "image_s": 38.4, "apt_stop_s": 1180.1,
                 "first_line_s": 38.4 },
   "treatments": ["slant", "denoise-1"],
@@ -173,7 +173,7 @@ Champs minimum (**PUB-040, DOIT**) :
 - **PUB-050 (DOIT)** — Une mesure par seconde, sur toute la durée du son. Le fichier est **en colonnes** (un tableau par grandeur, l'indice étant la seconde dans le son), ce qui le rend plus compact qu'une liste d'objets :
   - `audio_dbfs` : niveau d'entrée ;
   - `snr_db` : SNR estimé, comme le rapport entre l'énergie dans la bande WEFAX (noir − 100 Hz à blanc + 100 Hz, mesurés sur la carte) et la densité de bruit hors de cette bande (médiane sur 300 à 900 Hz et 2700 à 2900 Hz), ramené à 2,5 kHz comme dans le modulateur de test. L'estimation est juste à ±1 dB jusqu'à 20 dB et plafonne vers 25 dB au-delà, car les bandes latérales FM atteignent les bandes de référence ;
-  - `sat` : indicateur de saturation (§ 5, lot 2) ;
+  - `disturbance` : cause de la perturbation qui couvre la seconde, 0 si aucune (§ 5) ;
   - si un S-mètre est disponible : `smeter_db_s9`, en dB par rapport à S9 (valeur `STRENGTH` de Hamlib).
 - **PUB-051 (DOIT)** — `line_quality`, une valeur par ligne d'image.
 - **PUB-052 (DOIT)** — Le S-mètre sert d'**effet visuel animé** : sa précision n'est pas un objectif (décision du 2026-11-10), et il n'y a donc pas de table d'étalonnage. La source est la valeur `STRENGTH` de Hamlib, en dB par rapport à S9 :
@@ -193,39 +193,67 @@ Champs minimum (**PUB-040, DOIT**) :
 
 ---
 
-## 5. Saturation du récepteur par un émetteur de la station
+## 5. Perturbations locales : saturation du récepteur et parasites du bord
 
 ### 5.1 Le phénomène
 
-Quand un émetteur de la station passe en émission, le récepteur affecté au FAX, situé à proximité, est **saturé** : le signal FAX est totalement perdu tant que dure l'émission. En phonie, une émission dure couramment **15 s ou plus**, souvent beaucoup plus. À 120 lpm, 15 s représentent **30 lignes consécutives perdues**.
+Deux causes locales font perdre la carte pendant de longues secondes :
 
-Ce motif est très différent d'un fading ou d'un QRM ordinaire. La perte est franche et longue, avec un début et une fin nets.
+- **la saturation du récepteur** par un émetteur de la station. En phonie, une émission dure couramment **15 s ou plus** ;
+- **les parasites d'un équipement du bord** : régulateurs solaires MPPT, pilotes automatiques dont le vérin est commandé en PWM à fort courant, convertisseurs, onduleurs.
+
+La plupart des utilisateurs reçoivent avec une **clé SDR**, pas avec un transceiver radioamateur. La détection ne peut donc compter ni sur un indicateur de surcharge propre à un modèle, ni sur un S-mètre. Elle repose sur **le son seul**, que toutes les sources fournissent. Le S-mètre ou l'indicateur de surcharge d'un SDR restent des indices en plus quand ils existent.
+
+Ces perturbations se distinguent d'un fading naturel par des signatures mesurables chaque seconde :
+
+| Indice | Saturation | Parasite PWM / MPPT | Fading naturel |
+|---|---|---|---|
+| Écrêtage, saut de niveau | oui | parfois | non |
+| Bruit impulsif (kurtosis élevé) | souvent (voix, distorsion) | **oui** | non (bruit gaussien) |
+| Enveloppe périodique (rythme de découpage, 2 à 200 ms) | non | **oui** | non |
+| Spectre plat (bruit large bande) | oui | oui | oui |
+| Fronts francs, en 2 s au plus, au début et à la fin | **oui** | **oui** | non (évolution sur plusieurs secondes) |
 
 ### 5.2 Détection
 
-La détection combine plusieurs indicateurs, chacun horodaté à la seconde :
+- **SAT-001 (DOIT)** — **La zone** : au moins `min_run_s` secondes (par défaut **15 s**, soit 30 lignes à 120 lpm) où `line_quality` reste sous **0,8**. Un bruit seul donne 0,6 à 0,7, car l'essentiel du bruit FM tombe dans la plage noir-blanc, et une ligne propre donne 1. Des retours de moins de 2 s ne coupent pas une zone.
+- **SAT-002 (DOIT)** — **Les mesures audio, chaque seconde** : part d'échantillons écrêtés, niveau, kurtosis, planéité spectrale entre 300 et 2900 Hz, part de puissance dans la bande WEFAX, et périodicité de l'enveloppe. Elles sont comparées aux valeurs de la même carte en dehors des zones.
+- **SAT-003 (DEVRAIT)** — **Le S-mètre**, quand il existe, bloqué à S9+30 dB ou plus et 15 dB au-dessus de son niveau sur la carte.
+- **SAT-004 (DEVRAIT, V2 SDR)** — **La surcharge du convertisseur du SDR** : échantillons IQ en butée, quel que soit le modèle de clé. C'est l'indice le plus direct, disponible dès que owfaxd lira les SDR.
+- **SAT-005 (PEUT)** — Un indicateur de surcharge propre au récepteur (OVF de l'IC-7300 en CI-V), ou une entrée « TX actif » (GPIO, séquenceur), en **lecture seule**.
 
-- **SAT-001 (DOIT)** — **La qualité de ligne** : une suite d'au moins `min_run_s` secondes (réglable, par défaut **15 s**) où `line_quality` reste sous 0,1. Cet indicateur fonctionne avec toutes les sources, même une simple entrée audio.
-- **SAT-002 (DOIT, si CAT)** — **L'indicateur OVF de l'IC-7300**, lu en CI-V. La commande est à confirmer dans le manuel CI-V de l'IC-7300 (lecture de l'état OVF, `0x15 0x07`). C'est une lecture seule.
-- **SAT-003 (DEVRAIT, si SDR)** — **La surcharge signalée par le SDR**, par exemple l'événement de surcharge de l'API SDRplay pour le RSP2pro.
-- **SAT-004 (DEVRAIT)** — **Le S-mètre bloqué** au-dessus d'un seuil réglable (par défaut S9+40) pendant au moins `min_run_s`.
-- **SAT-005 (DEVRAIT)** — **La signature audio** : l'énergie dans la bande WEFAX s'effondre alors que le plancher de bruit large bande monte, ou que l'AGC « pompe », ou que l'écrêtage dépasse 0,1 %.
+Le classement d'une zone (**SAT-006, DOIT**), dans cet ordre :
 
-Les règles de décision :
+| Cause | Condition | Locale |
+|---|---|---|
+| `impulsive_interference` | enveloppe périodique (≥ 0,5) : c'est la signature du découpage PWM, même s'il écrête | oui |
+| `overload` | écrêtage, ou niveau 6 dB au-dessus de celui de la carte, ou S-mètre bloqué | oui |
+| `impulsive_interference` | sinon, kurtosis ≥ 6 (impulsions irrégulières) | oui |
+| `broadband_interference` | spectre plat **et** fronts francs | oui |
+| `fading` | aucun des cas précédents | non |
 
-- **SAT-006 (DOIT)** — Une **zone de saturation** est un intervalle continu où SAT-001 est vrai **et** où au moins un autre indicateur disponible (SAT-002 à SAT-005) est vrai. Si aucun autre indicateur n'existe (entrée audio seule), SAT-001 et SAT-005 suffisent ensemble.
-- **SAT-007 (DOIT)** — Une perte d'au moins 15 s **sans** indicateur de surcharge est classée « perte de signal » (fading, coupure de l'émetteur distant), pas « saturation ». Elle n'est pas rendue muette, mais elle compte dans la qualité (PUB-021).
-- **SAT-008 (PEUT)** — Une entrée « TX actif » externe (GPIO, séquenceur, CAT d'un autre transceiver en **lecture seule**) est prise comme indicateur prioritaire si elle est disponible. Elle n'est pas nécessaire en V1 de la vitrine.
+- **SAT-007 (DOIT)** — Une zone `fading` n'est pas une perturbation locale : elle compte dans la qualité (PUB-021) et dans `fading_fraction`, mais son son n'est pas coupé.
+- **SAT-008 (DOIT)** — Les seuils sont réglables. Leurs valeurs par défaut sont fixées sur des signaux synthétiques et doivent être confirmées sur des cas réels (§ 10) : une émission de la station, un MPPT, un pilote automatique.
 
 ### 5.3 Conséquences
 
-- **SAT-010 (DOIT)** — La carte est **refusée** si la part de lignes en zone de saturation dépasse `max_saturated_fraction`, réglable et par défaut **15 %**. C'est le cas de la carte « complètement brouillée ».
+- **SAT-010 (DOIT)** — La carte est **refusée** (motif `local_disturbance`) si la part de lignes en perturbation locale dépasse `max_local_fraction`, par défaut **15 %**.
 - **SAT-011 (DOIT)** — En dessous de ce seuil, la carte peut être publiée. Dans ce cas :
-  - les zones sont listées dans `meta.json`, avec le début et la fin (en secondes et en lignes) et les indicateurs déclencheurs ;
-  - le son de ces zones est rendu muet (PUB-031) ;
-  - le lecteur hachure ces lignes et affiche « réception interrompue par une émission de la station ».
-- **SAT-012 (DOIT)** — L'image elle-même n'est **pas retouchée** dans les zones de saturation. On montre la réalité, sans interpolation ni comblement.
-- **SAT-013 (DOIT)** — Tests : le corpus de tests (TST-001) gagne des enregistrements avec saturation injectée (blocs de 15 s, 30 s et 90 s de bruit large bande ou de silence écrêté, à partir du modulateur de test), plus au moins un cas réel. Les seuils SAT-001 et SAT-010 sont couverts par des tests automatisés.
+  - les zones sont listées dans `meta.json` (`disturbances`), avec début et fin en secondes et en lignes, cause et indices ;
+  - le son des zones locales est rendu muet (PUB-031). Les mesures de `telemetry.json` gardent les niveaux réels, et une colonne `disturbance` donne la cause seconde par seconde ;
+  - le lecteur hachure ces lignes et affiche « réception perturbée localement (émission de la station ou parasite du bord) ».
+- **SAT-012 (DOIT)** — L'image elle-même n'est **pas retouchée** dans les zones. On montre la réalité, sans interpolation ni comblement.
+- **SAT-013 (DOIT)** — Tests automatisés sur signaux synthétiques :
+  - une carte propre ne donne aucune zone ;
+  - une saturation écrêtée de 30 s donne une zone `overload` ;
+  - un parasite impulsif à 400 Hz donne une zone `impulsive_interference` ;
+  - un bruit large bande commuté donne une zone `broadband_interference` ;
+  - un fading à 2 dB/s reste `fading` ;
+  - une perturbation de 10 s est ignorée ;
+  - 90 s de saturation font refuser la carte et couper son son.
+
+  Sur le corpus réel, aucune zone locale ne doit être trouvée (fausses alarmes).
+- **SAT-014 (DEVRAIT)** — **Diagnostic de bord** : les mêmes mesures, appliquées en continu par owfaxd, permettent de signaler à l'utilisateur un parasite récurrent (« perturbation impulsive périodique à chaque mise en route du pilote ») sur la page de diagnostic (UI-007). Cela aide à trouver l'équipement en cause, ce qui sert bien au-delà de la vitrine.
 
 ---
 
@@ -291,7 +319,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 - **PLY-003 (DOIT)** — Vitesses de lecture ×1 (défaut, temps réel), ×4 et ×10. En accéléré, la hauteur du son est conservée (`preservesPitch`).
 - **PLY-004 (DOIT)** — Le son est coupé par défaut, à cause des règles d'autoplay des navigateurs. Un bouton « Écouter » bien visible le déclenche, et la lecture sans son reste possible.
 - **PLY-005 (DOIT)** — L'image révélée est l'image **brute** (`raw.webp`), comme sur le logiciel au moment de la réception. À la fin, un bouton **Avant / Après** permet de passer à l'image améliorée, comme UI-009.
-- **PLY-006 (DOIT)** — Les zones de saturation sont hachurées, avec une légende (SAT-011).
+- **PLY-006 (DOIT)** — Les zones de perturbation locale sont hachurées, avec une légende (SAT-011).
 - **PLY-007 (DEVRAIT)** — Mode playlist : enchaînement des N dernières cartes, avec en option une version accélérée (×10) en page d'accueil pour donner l'effet « station qui tourne en permanence ».
 
 ### 7.2 Instruments
@@ -319,7 +347,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 - **SEC-001 (DOIT)** — La station n'expose **aucun service** pour la vitrine : la publication ne fait que des connexions sortantes. Le dashboard (port 8090) et l'API de la station restent réservés au réseau local (NFR-006).
 - **SEC-002 (DOIT)** — Le compte WordPress de publication n'a que le droit `owfax_publish` : il ne peut ni publier d'articles, ni modifier d'extension, ni gérer d'utilisateur. Son mot de passe d'application peut être révoqué depuis l'administration WordPress.
 - **SEC-003 (DOIT)** — Le point d'entrée d'ingestion limite le nombre d'envois (par défaut 30 par heure), et le plugin journalise les refus.
-- **SEC-004 (DOIT)** — Le son publié ne contient jamais de zone de saturation (PUB-031). L'opérateur peut aussi rendre muet un intervalle à la main avant publication, en mode brouillon.
+- **SEC-004 (DOIT)** — Le son publié ne contient jamais de zone de perturbation locale (PUB-031). L'opérateur peut aussi rendre muet un intervalle à la main avant publication, en mode brouillon.
 - **SEC-005 (DOIT)** — Le lecteur ne fait aucun suivi des visiteurs et ne pose aucun cookie (cohérent avec NFR-005).
 
 ---
@@ -329,7 +357,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 | Lot | Contenu | Recette |
 |---|---|---|
 | **L1 — Paquet carte** | `meta.json` et `telemetry.json` (sans S-mètre), encodage WebP et AAC, distance et azimut, schéma JSON, règles PUB-020 à PUB-026 | Un paquet généré à partir d'une carte du corpus est validé par le schéma. Sa taille est mesurée. |
-| **L2 — Saturation** | SAT-001, SAT-005 à SAT-007, SAT-010 à SAT-013, son rendu muet | Les tests automatisés sur la saturation injectée passent. Une carte saturée à 30 % est refusée, une carte avec une zone de 20 s est publiée avec sa zone. |
+| **L2 — Perturbations locales** | SAT-001 à SAT-003, SAT-006 à SAT-013, son rendu muet | Les tests SAT-013 passent. Aucune fausse alarme sur le corpus réel. Une carte perturbée à plus de 15 % est refusée, une carte avec une zone de 20 s est publiée avec sa zone. |
 | **L3 — Lecteur local** | PLY-001 à PLY-012 et PLY-020 à PLY-025 dans le dashboard | La lecture est synchronisée à la ligne près, à ×1 et à ×10, sur Chrome, Firefox et Safari iOS. |
 | **L4 — Plugin WordPress** | Ingestion, stockage, purge, type de contenu, shortcodes, pages | Ingestion idempotente. La purge respecte le quota. Une page de carte est rendue sans appel PHP pendant la lecture. |
 | **L5 — Envoi** | File persistante, mot de passe d'application, reprise | Une coupure Internet de 2 h n'entraîne aucune perte de carte, et aucun doublon après reprise. |

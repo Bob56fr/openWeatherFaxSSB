@@ -63,6 +63,26 @@ double median(std::vector<float> v) {
     return static_cast<double>(*mid);
 }
 
+std::string disturbances_json(const DisturbanceReport& d) {
+    std::string o = "{\"detector\": \"audio-v1\", \"local_fraction\": " + num(d.local_fraction, 3) +
+                    ", \"fading_fraction\": " + num(d.fading_fraction, 3) + ", \"zones\": [";
+    for (std::size_t i = 0; i < d.zones.size(); ++i) {
+        const Zone& z = d.zones[i];
+        o += i ? ", " : "";
+        o += "{\"start_s\": " + num(z.start_s, 2) + ", \"end_s\": " + num(z.end_s, 2) +
+             ", \"first_line\": " + std::to_string(z.first_line) +
+             ", \"last_line\": " + std::to_string(z.last_line) +
+             ", \"cause\": " + str(cause_name(z.cause)) +
+             ", \"local\": " + (is_local(z.cause) ? "true" : "false") +
+             ", \"muted\": " + (is_local(z.cause) ? "true" : "false") + ", \"indicators\": [";
+        for (std::size_t k = 0; k < z.indicators.size(); ++k) {
+            o += (k ? ", " : "") + str(z.indicators[k]);
+        }
+        o += "]}";
+    }
+    return o + "]}";
+}
+
 }  // namespace
 
 double mean_quality(const wefax::DecodeReport& r) {
@@ -72,7 +92,7 @@ double mean_quality(const wefax::DecodeReport& r) {
     return q / static_cast<double>(r.line_quality.size());
 }
 
-Selection select(const wefax::DecodeReport& r, std::size_t lines, double saturated_fraction,
+Selection select(const wefax::DecodeReport& r, std::size_t lines, double local_fraction,
                  const StationRef& station, const SelectionRules& rules) {
     Selection s;
     if (lines == 0) {
@@ -82,8 +102,8 @@ Selection select(const wefax::DecodeReport& r, std::size_t lines, double saturat
         s.reasons.emplace_back("incomplete");  // PUB-020
     }
     if (mean_quality(r) < rules.min_quality) s.reasons.emplace_back("low_quality");  // PUB-021
-    if (saturated_fraction > rules.max_saturated_fraction) {
-        s.reasons.emplace_back("saturated");  // PUB-022, SAT-010
+    if (local_fraction > rules.max_local_fraction) {
+        s.reasons.emplace_back("local_disturbance");  // PUB-022, SAT-010
     }
     if (!station.publish_allowed) s.reasons.emplace_back("station_not_allowed");  // PUB-024
     s.publish = s.reasons.empty();
@@ -139,6 +159,8 @@ Package build_package(const ChartSource& src, const StationRef& station,
     bands.signal_hi_hz = std::max(r.black_hz, r.white_hz) + 100.0;
     p.telemetry =
         measure(p.audio, bands, smeter, static_cast<double>(src.recording_start_unix) + shift);
+    p.disturbances = detect_disturbances(p.report, p.raw.height, p.telemetry, rules.disturbance);
+    mute_local_disturbances(p.audio, p.disturbances);  // after the measurements (PUB-031)
 
     p.chart_start_s = chart_start - shift;
     p.chart_start_unix =
@@ -149,7 +171,7 @@ Package build_package(const ChartSource& src, const StationRef& station,
     const auto mid = src.recording_start_unix +
                      static_cast<std::int64_t>((r.image_start_s + r.image_end_s) / 2.0);
     p.daylight = path_daylight(receiver.position, station.position, mid);
-    p.selection = select(p.report, p.raw.height, 0.0, station, rules);
+    p.selection = select(p.report, p.raw.height, p.disturbances.local_fraction, station, rules);
     return p;
 }
 
@@ -216,7 +238,7 @@ std::string meta_json(const Package& p, const StationRef& st, const ReceiverRef&
       << ", \"snr_db_median\": " << num(median(snr_img), 1)
       << ", \"lines_bad_fraction\": " << num(bad_fraction, 3) << "},\n"
       << "  \"diversity\": {\"enabled\": false, \"sources\": []},\n"
-      << "  \"saturation\": {\"detector\": \"none\", \"zones\": [], \"fraction\": 0},\n"
+      << "  \"disturbances\": " << disturbances_json(p.disturbances) << ",\n"
       << "  \"sync\": {\"audio_duration_s\": " << num(p.audio.duration_s(), 3)
       << ", \"apt_start_s\": " << (apt ? num(r.apt_start_s, 3) : "null")
       << ", \"phasing_s\": " << (apt ? num(r.apt_start_s + kAptStartToneS, 3) : "null")
@@ -246,6 +268,10 @@ std::string telemetry_json(const Package& p) {
     if (!p.telemetry.smeter_db_s9.empty()) {
         o += "  \"smeter_db_s9\": " + array(p.telemetry.smeter_db_s9, 1) + ",\n";
     }
+    // 0 = clean; otherwise the cause of the disturbance covering that second.
+    o += "  \"disturbance_codes\": {\"1\": \"fading\", \"2\": \"overload\", \"3\": "
+         "\"impulsive_interference\", \"4\": \"broadband_interference\"},\n";
+    o += "  \"disturbance\": " + array(p.disturbances.per_second, 0) + ",\n";
     o += "  \"line_quality\": " + array(p.report.line_quality, 2) + "\n}\n";
     return o;
 }

@@ -5,7 +5,7 @@
   "description": "One received chart published as a replay on the web showcase. See docs/VITRINE-WEB.md § 4.3.",
   "type": "object",
   "required": ["schema", "chart_id", "replay", "software", "station", "receiver", "path", "time",
-               "wefax", "quality", "diversity", "saturation", "sync", "treatments", "selection", "files"],
+               "wefax", "quality", "diversity", "disturbances", "sync", "treatments", "selection", "files"],
   "additionalProperties": false,
   "$defs": {
     "text": { "type": "string" },
@@ -123,27 +123,36 @@
         }
       }
     },
-    "saturation": {
+    "disturbances": {
+      "description": "Stretches of 15 s or more where the image is lost (docs/VITRINE-WEB.md § 5). Local ones (receiver overload, interference on board) are muted in the audio.",
       "type": "object",
-      "required": ["detector", "zones", "fraction"],
+      "required": ["detector", "local_fraction", "fading_fraction", "zones"],
       "additionalProperties": false,
       "properties": {
         "detector": { "type": "string" },
+        "local_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fading_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
         "zones": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["start_s", "end_s", "first_line", "last_line", "indicators"],
+            "required": ["start_s", "end_s", "first_line", "last_line", "cause", "local", "muted", "indicators"],
+            "additionalProperties": false,
             "properties": {
               "start_s": { "type": "number" },
               "end_s": { "type": "number" },
-              "first_line": { "type": "integer" },
-              "last_line": { "type": "integer" },
-              "indicators": { "type": "array", "items": { "type": "string" } }
+              "first_line": { "type": "integer", "minimum": 0 },
+              "last_line": { "type": "integer", "minimum": 0 },
+              "cause": { "enum": ["fading", "overload", "impulsive_interference", "broadband_interference"] },
+              "local": { "type": "boolean" },
+              "muted": { "type": "boolean" },
+              "indicators": {
+                "type": "array",
+                "items": { "enum": ["clipping", "level_jump", "smeter_high", "impulsive", "periodic", "broadband", "abrupt_edges"] }
+              }
             }
           }
-        },
-        "fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
       }
     },
     "sync": {
@@ -177,7 +186,7 @@
         "publish": { "type": "boolean" },
         "reasons": {
           "type": "array",
-          "items": { "enum": ["no_image", "incomplete", "low_quality", "saturated", "station_not_allowed"] }
+          "items": { "enum": ["no_image", "incomplete", "low_quality", "local_disturbance", "station_not_allowed"] }
         }
       }
     },

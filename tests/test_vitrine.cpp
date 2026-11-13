@@ -196,7 +196,7 @@ OWFAX_TEST(vitrine_selection_rules) {
     OWFAX_CHECK(!blocked.publish &&
                 blocked.reasons == std::vector<std::string>{"station_not_allowed"});
     OWFAX_CHECK(select(r, 800, 0.2, test_station(true), rules).reasons ==
-                std::vector<std::string>{"saturated"});
+                std::vector<std::string>{"local_disturbance"});
     r.apt_stop_found = false;  // no stop tone: complete only if long enough
     OWFAX_CHECK(select(r, 800, 0.0, test_station(true), rules).publish);
     OWFAX_CHECK(select(r, 200, 0.0, test_station(true), rules).reasons ==

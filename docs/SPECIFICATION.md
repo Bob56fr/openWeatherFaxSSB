@@ -347,7 +347,7 @@ Le Pi n'a pas d'horloge RTC. Or toute la planification est en UTC.
 - **NFR-002 (DOIT)** — Charge CPU pour un décodage WEFAX audio en temps réel : < 25 % d'un cœur sur Pi Zero 2 W, et compatible avec un SoC Cortex-A7 d'un téléphone Android 5.
 - **NFR-003 (DOIT)** — Empreinte mémoire du cœur (WEFAX audio seul) : < 150 Mo.
 - **NFR-004 (DOIT)** — Fonctionnement intégral **sans Internet**. Internet ne sert qu'aux mises à jour (catalogue, logiciel) et à l'heure NTP.
-- **NFR-005 (DOIT)** — Aucune télémétrie ni collecte de données ; aucune connexion sortante autre que les mises à jour, désactivables.
+- **NFR-005 (DOIT)** — Aucune télémétrie ni collecte de données ; aucune connexion sortante autre que les mises à jour, désactivables. Seule exception : la publication vers une vitrine web, désactivée par défaut et activée explicitement par l'opérateur ([VITRINE-WEB.md](VITRINE-WEB.md), VIT-003).
 - **NFR-006 (DOIT)** — Sécurité de la station :
   - interface accessible uniquement sur le réseau local ;
   - mot de passe skipper requis pour tout paramétrage ;

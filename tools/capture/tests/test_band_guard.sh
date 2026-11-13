@@ -46,13 +46,15 @@ elapsed=$(RIG_BAND_GUARD_S=5 run_two_changes 2>/dev/null)
 awk -v e="$elapsed" 'BEGIN { exit !(e >= 5.0 && e < 6.0) }' || fail "two changes ${elapsed} s apart (expected 5 to 6 s)"
 echo "ok: same script, ${elapsed} s between changes"
 
-# 2. Across scripts: the stamp left by the previous script is honoured.
-start=$(date +%s.%N)
+# 2. Across scripts: the stamp left by the previous script is honoured. Measured from
+#    the previous script's last change (its stamp), not from when it exited: what
+#    protects the relays is the time between two changes.
+before=$(cat "$RIG_BAND_STAMP")
 RIG_BAND_GUARD_S=5 run_two_changes >/dev/null 2>&1
-end=$(date +%s.%N)
-total=$(awk -v a="$start" -v b="$end" 'BEGIN { printf "%.2f", b - a }')
-awk -v e="$total" 'BEGIN { exit !(e >= 10.0 && e < 11.0) }' || fail "cross-script: ${total} s for two changes (expected 10 to 11 s)"
-echo "ok: across scripts, first change waited (${total} s for two changes)"
+after=$(cat "$RIG_BAND_STAMP")
+total=$(awk -v a="$before" -v b="$after" 'BEGIN { printf "%.2f", b - a }')
+awk -v e="$total" 'BEGIN { exit !(e >= 10.0 && e < 11.0) }' || fail "cross-script: ${total} s from the previous change to the second one (expected 10 to 11 s)"
+echo "ok: across scripts, first change waited (${total} s from the previous change to the second one)"
 
 # 3. A guard below 5 s is refused.
 msg=$(RIG_BAND_GUARD_S=1 bash -c 'source "$1/../rig_safe.sh"; echo "$RIG_BAND_GUARD_S"' _ "$HERE" 2>&1)

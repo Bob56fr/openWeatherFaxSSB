@@ -1038,11 +1038,23 @@
     } catch (e) { /* offline */ }
   }
 
+  // Publication to the web showcase (VIT-003): shown in the bar whenever it is on.
+  async function renderPublishing() {
+    try {
+      const s = await getJSON(API + '/vitrine/publish');
+      // owfax-vitrine send writes its state every minute: older than 3 min, it is stopped.
+      const on = !!(s.configured && s.active && s.site && s.now_unix - s.updated_unix < 180);
+      $('publishing').hidden = !on;
+      if (on) $('publishing').textContent = t('vitrine.publishing', { site: s.site.replace(/^https?:\/\//, '') });
+    } catch (e) { /* offline, or an owfaxd without the route */ }
+  }
+
   bind();
   setTheme(load('theme', 'auto'));
   setSound(load('sound', 'off') === 'on');
   const browserLang = (navigator.language || 'fr').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-  setLanguage(load('lang', browserLang));
+  setLanguage(load('lang', browserLang)).then(renderPublishing);
+  setInterval(renderPublishing, 60000);
   about();
   connect();
   // First use: no skipper password yet → open the setup assistant (UI-003).

@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 openWeatherFaxSSB contributors
+#
+# Publication to the web showcase (docs/VITRINE-WEB.md § 4.5) as a systemd user
+# service: owfax-vitrine send --loop sends the queue to the WordPress plugin, over
+# HTTPS, outgoing only. Off unless installed (VIT-003). Written by
+# tools/station/install-publish-service.sh from this template.
+
+[Unit]
+Description=openWeatherFaxSSB showcase publication to @SITE@
+Documentation=https://github.com/Bob56fr/openWeatherFaxSSB/blob/main/docs/VITRINE-WEB.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart="@BIN@" send --queue "@QUEUE@" --site "@SITE@" --credentials "@CREDENTIALS@" --loop
+Restart=always
+RestartSec=60
+Nice=10
+
+[Install]
+WantedBy=default.target

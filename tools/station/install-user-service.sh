@@ -9,6 +9,9 @@
 #                    (default: alsa:plughw:CARD=Device,DEV=0, USB sound card of a TRX)
 #   --port <n>       web interface and API port (default: 8080)
 #   --charts <dir>   where charts are written (default: ~/owfax-corpus/decoded)
+#   --vitrine <dir>  web showcase packages, replayed on the Vitrine page
+#   --publish-queue <dir>  queue of owfax-vitrine send: the dashboard shows when the
+#                    publication to the web showcase is on (install-publish-service.sh)
 #   --start          also start it now (by default it is only enabled)
 #   --remove         stop, disable and remove the service
 #
@@ -26,6 +29,8 @@ REPO=$(cd "$HERE/../.." && pwd)
 INPUT="alsa:plughw:CARD=Device,DEV=0"
 PORT=8080
 CHARTS="$HOME/owfax-corpus/decoded"
+VITRINE=""
+PUBLISH_QUEUE=""
 START=0
 REMOVE=0
 while [[ $# -gt 0 ]]; do
@@ -33,6 +38,8 @@ while [[ $# -gt 0 ]]; do
     --input) INPUT=$2; shift 2 ;;
     --port) PORT=$2; shift 2 ;;
     --charts) CHARTS=$2; shift 2 ;;
+    --vitrine) VITRINE=$2; shift 2 ;;
+    --publish-queue) PUBLISH_QUEUE=$2; shift 2 ;;
     --start) START=1; shift ;;
     --remove) REMOVE=1; shift ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p'; exit 0 ;;
@@ -61,12 +68,16 @@ case "$(cd "$(dirname "$CONFIG")" && pwd)/" in
   "$(cd "$CHARTS" && pwd)/"*) echo "the settings file must stay outside the charts directory" >&2; exit 1 ;;
 esac
 
+EXTRA=""
+[[ -n $VITRINE ]] && EXTRA+=" --vitrine \"$VITRINE\""
+[[ -n $PUBLISH_QUEUE ]] && EXTRA+=" --publish-queue \"$PUBLISH_QUEUE\""
+
 # Template → unit. Values are escaped for sed (|, & and \).
 esc() { printf '%s' "$1" | sed -e 's/[\\|&]/\\&/g'; }
 sed -e "s|@REPO@|$(esc "$REPO")|g" -e "s|@OWFAXD@|$(esc "$OWFAXD")|g" \
     -e "s|@CONFIG@|$(esc "$CONFIG")|g" -e "s|@INPUT@|$(esc "$INPUT")|g" \
     -e "s|@CHARTS@|$(esc "$CHARTS")|g" -e "s|@JOURNAL@|$(esc "$JOURNAL")|g" \
-    -e "s|@PORT@|$PORT|g" "$HERE/owfaxd.service.in" > "$UNIT"
+    -e "s|@EXTRA@|$(esc "$EXTRA")|g" -e "s|@PORT@|$PORT|g" "$HERE/owfaxd.service.in" > "$UNIT"
 
 if command -v systemd-analyze >/dev/null &&
    ! systemd-analyze --user verify "$UNIT" 2>&1 | sed "s|^|  |"; then

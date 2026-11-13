@@ -69,6 +69,7 @@ Pourquoi pas le direct :
 - **VIT-001 (DOIT)** — Flux à sens unique : seule la station envoie au WordPress, toujours par HTTPS et en connexion sortante. Le WordPress n'initie jamais de connexion vers la station.
 - **VIT-002 (DOIT)** — Pendant la lecture, le lecteur ne charge que des fichiers statiques, sans aucun appel PHP. Sans visiteur, la vitrine ne consomme rien côté WordPress en dehors de l'ingestion des cartes.
 - **VIT-003 (DOIT)** — La publication est **désactivée par défaut** dans owfaxd, et il faut l'activer explicitement. C'est la seule exception à NFR-005, et l'interface de la station l'indique clairement : « publication vitrine active vers <site> ».
+  > Lot 5 : l'envoi est fait par `owfax-vitrine send`, qui ne tourne que si on l'a installé avec `--site`. Lancé avec `--publish-queue <file>`, owfaxd lit l'état écrit par l'envoi chaque minute (`/api/v1/vitrine/publish`). Le tableau de bord affiche alors le badge « Publication vitrine active vers <site> » dans sa barre, et le détail sur la page Vitrine : cartes en attente, refusées, dernier envoi, dernier échec.
 - **VIT-004 (DOIT)** — Chaque lecture et chaque page de carte affichent :
   - le badge **« Rediffusion »** et la date et l'heure UTC de la réception. Le mot « direct » ou « live » n'apparaît jamais ;
   - la mention « Démonstration — ne pas utiliser pour la navigation, consultez les bulletins officiels ».
@@ -190,6 +191,18 @@ Champs minimum (**PUB-040, DOIT**) :
 - **PUB-062 (DOIT)** — Une **file persistante** sur la station gère les envois. Elle survit à un redémarrage et réessaie avec un délai croissant de 1 min à 6 h. Si Internet est coupé, les cartes attendent, et les paquets en attente depuis plus de 48 h sont abandonnés, avec une ligne dans le journal.
 - **PUB-063 (DOIT)** — Le mot de passe d'application est stocké sur la station avec des droits restreints (lisible par le seul utilisateur du service). Il n'apparaît jamais dans les journaux.
 - **PUB-064 (DEVRAIT)** — Envoi par morceaux si le paquet dépasse la limite d'upload de l'hébergement, détectée par `GET /wp-json/owfax/v1/limits`.
+  > Lot 5 : la station lit ces limites avant chaque série d'envois. Un paquet trop gros pour l'hébergeur est mis de côté avec le motif (`upload_max_filesize` ou `post_max_size`), au lieu d'être envoyé pour rien. L'envoi par morceaux n'est pas fait : il demande aussi une route dans le plugin. Avec 3 à 7 Mo par carte, la limite courante de 8 Mo suffit.
+- **PUB-065 (DOIT)** — Réalisation (lot 5) : `owfax-vitrine`.
+  - `package … --enqueue <file>`, ou `enqueue --queue <file> <paquet>…`, copie les paquets publiables dans la file. Un paquet non publiable, non encodé ou incomplet est refusé à l'entrée.
+  - `send --queue <file> --site https://… --credentials <fichier> --loop` envoie les cartes une par une, de la plus ancienne à la plus récente, et s'arrête au premier échec qui peut passer : pas de réseau, site en panne, 429, 5xx, 507. Le délai d'attente double ensuite à chaque échec.
+  - Un refus définitif du site (400, 413, 415, 422) met le paquet de côté dans `refused/`, avec son motif, et la file continue. Un nouvel `enqueue` le remet en file.
+  - Le transport est le programme `curl`, qui reçoit toute sa configuration, mot de passe compris, sur son entrée standard.
+  - Le fichier d'identifiants contient une ligne `identifiant:mot de passe d'application`. Il est refusé s'il est lisible par d'autres utilisateurs.
+  - En http, seule une adresse locale est acceptée, pour les essais.
+  - La file est un dossier : `pending/`, `refused/`, `sent.log`, `journal.log`, `state.json` et `status.json`. Chaque fichier y est écrit à côté puis renommé, pour qu'une coupure de courant ne laisse jamais de fichier à moitié écrit.
+  - `queue --queue <file>` montre ce qui attend.
+  - Service : `tools/station/install-publish-service.sh --site https://…`.
+- **PUB-066 (DOIT)** — Aucun doublon. Quand une réponse se perd, la station renvoie la carte et le site répond « exists », ce qui compte comme envoyé. Une carte déjà dans `sent.log` n'est plus mise en file. Si la station s'arrête entre l'accord du site et la sortie de la file, elle ne renvoie pas la carte.
 
 ---
 
@@ -361,7 +374,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 | **L2 — Perturbations locales** | SAT-001 à SAT-003, SAT-006 à SAT-013, son rendu muet | Les tests SAT-013 passent. Aucune fausse alarme sur le corpus réel. Une carte perturbée à plus de 15 % est refusée, une carte avec une zone de 20 s est publiée avec sa zone. |
 | **L3 — Lecteur local** | PLY-001 à PLY-012 et PLY-020 à PLY-025 dans le dashboard | La lecture est synchronisée à la ligne près, à ×1 et à ×10, sur Chrome, Firefox et Safari iOS. |
 | **L4 — Plugin WordPress** | Ingestion, stockage, purge, type de contenu, shortcodes, pages | Ingestion idempotente. La purge respecte le quota. Une page de carte est rendue sans appel PHP pendant la lecture. |
-| **L5 — Envoi** | File persistante, mot de passe d'application, reprise | Une coupure Internet de 2 h n'entraîne aucune perte de carte, et aucun doublon après reprise. |
+| **L5 — Envoi** | File persistante, mot de passe d'application, reprise | Une coupure Internet de 2 h n'entraîne aucune perte de carte, et aucun doublon après reprise. *(Test `publish_two_hour_cut_loses_nothing_and_duplicates_nothing` sur une horloge simulée, et essai réel minix → WordPress : coupure, reprise, réponse perdue.)* |
 | **L6 — CAT et compléments** | S-mètre et OVF par CAT (PUB-052, SAT-002), waterfall, scheduler avec PUB-010 et PUB-011, prochaine réception, carte des trajets | Les lectures CAT ne provoquent aucun changement de fréquence. Le test CAT-009 reste vert. |
 
 ---

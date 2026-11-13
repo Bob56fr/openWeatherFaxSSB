@@ -2,9 +2,10 @@
 // Copyright (C) 2026 openWeatherFaxSSB contributors
 //
 // owfax-vitrine: builds the chart packages of the web showcase (docs/VITRINE-WEB.md,
-// lot 1) from a capture recording. Sends nothing: publishing is a later step.
+// lot 1) from a capture recording, and publishes them (lot 5, publish_cmd.cpp).
 //
 //   owfax-vitrine package <capture.wav> --catalog <dir> --locator <QTH> [options]
+//   owfax-vitrine enqueue | send | queue --queue <dir> ...
 //
 // Every chart found in the recording becomes a directory <out>/<chart_id>/ with
 // raw.webp, enh.webp, thumb.webp, audio.m4a (encoded with ffmpeg), meta.json and
@@ -16,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -31,6 +33,7 @@
 #include "owfax/net/json.hpp"
 #include "owfax/vitrine/catalog.hpp"
 #include "owfax/vitrine/package.hpp"
+#include "owfax/vitrine/publish.hpp"
 #include "owfax/wefax/decoder.hpp"
 
 namespace fs = std::filesystem;
@@ -44,8 +47,10 @@ void usage() {
     std::fputs(
         "Usage:\n"
         "  owfax-vitrine package <capture.wav> --catalog <dir> --locator <QTH> [options]\n"
+        "  owfax-vitrine enqueue | send | queue --queue <dir> ...   (see send --help)\n"
         "\n"
-        "Builds one showcase package per chart found in the recording (nothing is sent).\n"
+        "Builds one showcase package per chart found in the recording. Nothing is sent:\n"
+        "--enqueue queues the publishable ones for owfax-vitrine send.\n"
         "\n"
         "Options:\n"
         "  --out <dir>             output directory (default: vitrine-out)\n"
@@ -59,6 +64,7 @@ void usage() {
         "  --min-quality <0..1>    publication threshold (default 0.60)\n"
         "  --min-lines <n>         complete chart without APT stop (default 600)\n"
         "  --only-publishable      write only the charts that pass the selection rules\n"
+        "  --enqueue <queue dir>   queue the publishable charts for owfax-vitrine send\n"
         "  --ffmpeg <path>         ffmpeg executable (default: ffmpeg)\n"
         "  --no-encode             keep PNG and WAV, do not run ffmpeg\n"
         "  --keep-intermediate     keep the PNG and WAV next to the encoded files\n",
@@ -78,6 +84,7 @@ struct Options {
     std::optional<double> dial_khz;
     vitrine::SelectionRules rules;
     bool only_publishable = false;
+    std::string enqueue;
     std::string ffmpeg = "ffmpeg";
     bool encode = true;
     bool keep_intermediate = false;
@@ -172,6 +179,8 @@ bool parse(int argc, char** argv, Options& o) {
             if (ok) o.rules.min_lines = static_cast<std::size_t>(*n);
         } else if (a == "--only-publishable")
             o.only_publishable = true;
+        else if (a == "--enqueue")
+            ok = value(o.enqueue);
         else if (a == "--ffmpeg")
             ok = value(o.ffmpeg);
         else if (a == "--no-encode")
@@ -183,6 +192,10 @@ bool parse(int argc, char** argv, Options& o) {
             return false;
         }
         if (!ok) return false;
+    }
+    if (!o.enqueue.empty() && !o.encode) {
+        std::fputs("owfax-vitrine: --enqueue needs encoded packages (no --no-encode)\n", stderr);
+        return false;
     }
     if (o.catalog.empty() || o.locator.empty()) {
         std::fputs("owfax-vitrine: --catalog and --locator are required\n", stderr);
@@ -405,12 +418,21 @@ int package(Options& o) {
                     dir.string().c_str(), p.audio.duration_s(), total, mb_of(dir / files.audio),
                     mb_of(dir / files.raw));
         ++written;
+        if (!o.enqueue.empty() && p.selection.publish) {
+            vitrine::PublishQueue q(o.enqueue);
+            std::string err;
+            const std::string r =
+                q.enqueue(dir, static_cast<std::int64_t>(std::time(nullptr)), err);
+            std::printf("      publication queue: %s\n", r.empty() ? err.c_str() : r.c_str());
+        }
     }
     std::printf("%d package(s) written to %s\n", written, o.out.c_str());
     return 0;
 }
 
 }  // namespace
+
+int publish_main(int argc, char** argv);  // publish_cmd.cpp
 
 int main(int argc, char** argv) {
     if (argc >= 2 && (std::strcmp(argv[1], "--help") == 0 || std::strcmp(argv[1], "-h") == 0)) {
@@ -423,6 +445,10 @@ int main(int argc, char** argv) {
                     b.version.data(), static_cast<int>(b.git_revision.size()),
                     b.git_revision.data());
         return 0;
+    }
+    if (argc >= 2 && (std::strcmp(argv[1], "enqueue") == 0 || std::strcmp(argv[1], "send") == 0 ||
+                      std::strcmp(argv[1], "queue") == 0)) {
+        return publish_main(argc, argv);
     }
     Options o;
     if (!parse(argc, argv, o)) {

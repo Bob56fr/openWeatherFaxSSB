@@ -46,3 +46,15 @@
 .vt-verdict { font-size: 0.85rem; font-weight: 600; }
 .vt-verdict.ok { color: var(--ok); }
 .vt-verdict.refused { color: var(--live); }
+
+/* Publication to the web showcase (VIT-003): plain to see when it is on. */
+.vt-pub {
+  margin: 8px 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+.vt-pub[data-state="on"] { border-left-color: var(--ok); font-weight: 600; }
+.vt-pub[data-state="off"] { color: var(--muted); }

@@ -395,3 +395,33 @@ OWFAX_TEST(net_websocket_live_stream) {
     OWFAX_CHECK(api.live_clients() == 0);
     server.stop();
 }
+
+OWFAX_TEST(net_api_tells_whether_publication_is_active) {
+    const fs::path root = fs::temp_directory_path() / "owfax_test_publish_status";
+    fs::remove_all(root);
+    fs::create_directories(root);
+    HttpServer::Options opt;
+    opt.bind = "127.0.0.1";
+    opt.port = 0;
+
+    Api off{ApiConfig{}};  // not publishing: the default (VIT-003)
+    HttpServer s1(opt, off.handler());
+    auto r = get(s1.port(), "/api/v1/vitrine/publish");
+    OWFAX_CHECK(r.status == 200 && r.body.find("\"configured\": false") != std::string::npos);
+    s1.stop();
+
+    ApiConfig cfg;
+    cfg.publish_queue = root.string();
+    Api api(cfg);
+    HttpServer s2(opt, api.handler());
+    r = get(s2.port(), "/api/v1/vitrine/publish");  // queue not written yet
+    OWFAX_CHECK(r.body.find("\"active\": false") != std::string::npos);
+    write_file(root / "status.json",
+               "{\"active\": true, \"site\": \"https://example.org\", \"updated_unix\": 1}\n");
+    r = get(s2.port(), "/api/v1/vitrine/publish");
+    OWFAX_CHECK(r.body.find("\"site\": \"https://example.org\"") != std::string::npos);
+    OWFAX_CHECK(r.body.find("\"configured\": true") != std::string::npos);
+    OWFAX_CHECK(r.body.find("\"now_unix\": ") != std::string::npos);
+    OWFAX_CHECK(r.body.find("}") == r.body.size() - 2);  // one object, still valid JSON
+    s2.stop();
+}

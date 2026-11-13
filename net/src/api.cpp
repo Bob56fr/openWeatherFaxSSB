@@ -283,6 +283,7 @@ Response Api::handle(const Request& request) {
         }
         if (parts.size() >= 3 && parts[2] == "vitrine") {
             if (parts.size() == 3) return vitrine("", "", request);
+            if (parts.size() == 4 && parts[3] == "publish") return publication();
             if (parts.size() == 5) return vitrine(parts[3], parts[4], request);
         }
         if (parts.size() >= 3 && parts[2] == "stations" && parts.size() <= 4) {
@@ -642,6 +643,27 @@ Response Api::vitrine(const std::string& id, const std::string& file,
     if (r.status == 404) return error(404, "no " + file + " in " + id);
     // Media never change; meta.json may be rewritten by a new run of the tool.
     r.headers.emplace_back("Cache-Control", file == "meta.json" ? "no-cache" : "max-age=3600");
+    return r;
+}
+
+/// State of the publication to the web showcase (VIT-003), written by
+/// owfax-vitrine send in its queue: the dashboard says "active towards <site>".
+Response Api::publication() const {
+    const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+    const std::string tail = "\"now_unix\": " + std::to_string(now) + "}\n";
+    if (config_.publish_queue.empty()) return Response::json("{\"configured\": false, " + tail);
+    const auto text = read_file(fs::path(config_.publish_queue) / "status.json");
+    std::string body = text ? trim_json(*text) : std::string();
+    if (body.size() < 2 || body.front() != '{' || body.back() != '}') {
+        return Response::json("{\"configured\": true, \"active\": false, " + tail);
+    }
+    body.pop_back();
+    while (!body.empty() && (body.back() == ' ' || body.back() == '\n')) body.pop_back();
+    Response r =
+        Response::json(body + (body.size() > 1 ? ", " : "") + "\"configured\": true, " + tail);
+    r.headers.emplace_back("Cache-Control", "no-cache");
     return r;
 }
 

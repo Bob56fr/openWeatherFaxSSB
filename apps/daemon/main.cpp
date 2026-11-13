@@ -73,6 +73,7 @@ struct Options {
     std::string catalog_dir;
     std::string web_dir;
     std::string vitrine_dir;
+    std::string publish_queue;
     bool keep_serving = false;
 };
 
@@ -210,6 +211,8 @@ void usage() {
         "  --web <dir>           web interface files (default: a built-in page)\n"
         "  --vitrine <dir>       web showcase packages (owfax-vitrine package --out),\n"
         "                        served at /api/v1/vitrine for the replay player\n"
+        "  --publish-queue <dir> queue of owfax-vitrine send: the Vitrine page shows\n"
+        "                        whether publication to the web showcase is active\n"
         "  --keep-serving        keep the API up after the input ends (until a signal)\n"
         "\n"
         "Files per chart in --out: <stem>_live.png, <stem>.png (raw), <stem>_enh.png,\n"
@@ -306,6 +309,9 @@ bool parse(int argc, char** argv, Options& o) {
         } else if (a == "--vitrine") {
             if ((v = value(i)) == nullptr) return false;
             o.vitrine_dir = v;
+        } else if (a == "--publish-queue") {
+            if ((v = value(i)) == nullptr) return false;
+            o.publish_queue = v;
         } else if (a == "--keep-serving") {
             o.keep_serving = true;
         } else {
@@ -546,6 +552,7 @@ int run(Options o) {
         ac.catalog_dir = o.catalog_dir;
         ac.web_dir = o.web_dir;
         ac.vitrine_dir = o.vitrine_dir;
+        ac.publish_queue = o.publish_queue;
         ac.input = input;
         ac.journal_path = o.journal;
         ac.diagnostics = [&o, &options_mutex, input, rate] {

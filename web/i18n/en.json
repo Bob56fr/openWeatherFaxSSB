@@ -4,6 +4,7 @@
   "nav.schedule": "Schedule",
   "nav.vitrine": "Showcase",
   "nav.settings": "Settings",
+  "vitrine.publishing": "Showcase publication active towards {site}",
   "state.offline": "Offline",
   "state.starting": "Starting",
   "state.listening": "Listening",

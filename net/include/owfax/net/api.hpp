@@ -16,6 +16,7 @@
 //                                             newest first (docs/VITRINE-WEB.md)
 //   GET /api/v1/vitrine/{chart_id}/{file}     meta.json, telemetry.json, raw.webp,
 //                                             enh.webp, thumb.webp, audio.m4a
+//   GET /api/v1/vitrine/publish               state of the publication to the site
 //   GET /api/v1/live                          WebSocket: start, lock, line, complete,
 //                                             status, spectrum (input audio)
 //   GET /api/v1/diagnostics                   host, hardware tier, inputs (UI-007)
@@ -46,6 +47,7 @@ struct ApiConfig {
     std::string catalog_dir;       ///< Station JSON files (empty = no catalogue).
     std::string web_dir;           ///< Web interface files (empty = built-in page).
     std::string vitrine_dir;       ///< Showcase packages, one directory each (empty = none).
+    std::string publish_queue;     ///< Queue of owfax-vitrine send (empty = not publishing).
     std::string input;             ///< Description of the audio input.
     std::string journal_path;      ///< Journal served at /api/v1/journal (empty = none).
     /// JSON object for /api/v1/diagnostics (host, inputs, options), built on request.
@@ -87,6 +89,7 @@ private:
     Response stations(const std::string& id) const;
     Response web(const std::string& path, const std::string& range) const;
     Response vitrine(const std::string& id, const std::string& file, const Request& request) const;
+    Response publication() const;
     Response info() const;
     Response diagnostics() const;
     Response journal() const;

@@ -23,6 +23,12 @@
       'reason.local_disturbance': 'perturbation locale',
       'reason.station_not_allowed': 'station non autorisée',
       quality: 'qualité {q} %', disturbed: 'perturbée {p} %',
+      'pub.off': 'Publication vitrine désactivée : la station n’envoie rien.',
+      'pub.active': 'Publication vitrine active vers {site}',
+      'pub.stopped': 'Publication vitrine arrêtée depuis {when} UTC (vers {site})',
+      'pub.pending': '{n} en attente', 'pub.next': 'prochain essai {when} UTC',
+      'pub.refused': '{n} refusée(s) par le site', 'pub.last': 'dernière envoyée {when} UTC',
+      'pub.error': 'dernier échec : {e}',
     },
     en: {
       back: '← Dashboard', title: 'Showcase: replay',
@@ -38,6 +44,12 @@
       'reason.local_disturbance': 'local disturbance',
       'reason.station_not_allowed': 'station not allowed',
       quality: 'quality {q} %', disturbed: 'disturbed {p} %',
+      'pub.off': 'Showcase publication off: the station sends nothing.',
+      'pub.active': 'Showcase publication active towards {site}',
+      'pub.stopped': 'Showcase publication stopped since {when} UTC (towards {site})',
+      'pub.pending': '{n} waiting', 'pub.next': 'next try {when} UTC',
+      'pub.refused': '{n} refused by the site', 'pub.last': 'last sent {when} UTC',
+      'pub.error': 'last failure: {e}',
     },
   };
 
@@ -160,5 +172,40 @@
     if (wanted && packages.some(function (m) { return m.chart_id === wanted; })) open(wanted, false);
   }
 
+  function utc(s) { return String(s || '').replace('T', ' ').slice(0, 16); }
+
+  // Publication to the web showcase (VIT-003): off unless owfax-vitrine send runs.
+  async function publication() {
+    const box = document.getElementById('publication');
+    let s;
+    try {
+      const r = await fetch(API + '/publish', { cache: 'no-store' });
+      s = r.ok ? await r.json() : { configured: false };
+    } catch (e) {
+      return;
+    }
+    // The sender writes its state every minute: older than 3 min, it is not running.
+    const alive = s.active && s.now_unix - s.updated_unix < 180;
+    const parts = [];
+    let state = 'off';
+    if (!s.configured || !s.site) {
+      parts.push(t('pub.off'));
+    } else {
+      state = alive ? 'on' : 'off';
+      parts.push(alive ? t('pub.active', { site: s.site })
+        : t('pub.stopped', { site: s.site, when: utc(s.updated_utc) }));
+      if (s.pending) parts.push(t('pub.pending', { n: s.pending }));
+      if (s.pending && s.next_try_utc) parts.push(t('pub.next', { when: utc(s.next_try_utc) }));
+      if (s.refused) parts.push(t('pub.refused', { n: s.refused }));
+      if (s.last_sent) parts.push(t('pub.last', { when: utc(s.last_sent.utc) }));
+      if (s.last_error && s.pending) parts.push(t('pub.error', { e: s.last_error }));
+    }
+    box.textContent = parts.join(' · ');
+    box.setAttribute('data-state', state);
+    box.hidden = false;
+  }
+
   refresh();
+  publication();
+  window.setInterval(publication, 60000);
 })();

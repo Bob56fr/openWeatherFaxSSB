@@ -250,6 +250,40 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "416":
           description: Range beyond the end of the file
+  /api/v1/vitrine/publish:
+    get:
+      summary: State of the publication to the web showcase (VIT-003)
+      description: |
+        The status.json that `owfax-vitrine send` writes in its queue every minute,
+        when owfaxd runs with `--publish-queue <dir>`, plus `configured` and
+        `now_unix`. Publication is off by default: `{"configured": false}`. The sender
+        is stopped when `active` is false or `updated_unix` is more than 3 min old.
+      responses:
+        "200":
+          description: Publication state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [configured, now_unix]
+                properties:
+                  configured: { type: boolean }
+                  now_unix: { type: integer }
+                  active: { type: boolean }
+                  site: { type: string, example: "https://example.org" }
+                  updated_unix: { type: integer }
+                  updated_utc: { type: string }
+                  pending: { type: integer, description: Charts waiting in the queue }
+                  refused: { type: integer, description: Charts refused for good by the site }
+                  failures: { type: integer, description: Failed tries in a row }
+                  next_try_utc: { type: [string, "null"] }
+                  last_error: { type: string }
+                  last_sent:
+                    type: [object, "null"]
+                    properties:
+                      utc: { type: string }
+                      chart_id: { type: string }
+                      url: { type: string }
   /api/v1/live:
     get:
       summary: Live stream over WebSocket (DSP-007)

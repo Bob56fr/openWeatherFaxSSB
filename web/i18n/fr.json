@@ -4,6 +4,7 @@
   "nav.schedule": "Planning",
   "nav.vitrine": "Vitrine",
   "nav.settings": "Réglages",
+  "vitrine.publishing": "Publication vitrine active vers {site}",
   "state.offline": "Hors ligne",
   "state.starting": "Démarrage",
   "state.listening": "En écoute",

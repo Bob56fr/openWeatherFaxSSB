@@ -9,6 +9,7 @@ add_library(owfax_vitrine
   src/disturbance.cpp
   src/geo.cpp
   src/package.cpp
+  src/publish.cpp
   src/telemetry.cpp)
 add_library(owfax::vitrine ALIAS owfax_vitrine)
 target_include_directories(owfax_vitrine PUBLIC

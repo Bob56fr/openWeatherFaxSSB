@@ -4,6 +4,12 @@
   "name": "Joint Operations Meteorology and Oceanography Centre — Northwood (Royal Navy)",
   "country": "GB",
   "position": { "lat": 51.62, "lon": -0.42 },
+  "publication": {
+    "allowed": false,
+    "attribution": "",
+    "terms_url": "",
+    "note": "Reuse conditions of the Royal Navy / Met Office charts not checked yet (docs/VITRINE-WEB.md, PUB-024)."
+  },
   "wefax": {
     "shift_hz": 800,
     "default_lpm": 120,

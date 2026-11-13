@@ -13,10 +13,11 @@ add_executable(owfax_tests
   test_files.cpp
   test_net.cpp
   test_settings.cpp
+  test_vitrine.cpp
   test_wefax_decode.cpp
   test_stream_decoder.cpp
   test_wefax_params.cpp)
-target_link_libraries(owfax_tests PRIVATE owfax::core owfax::io owfax::net)
+target_link_libraries(owfax_tests PRIVATE owfax::core owfax::io owfax::net owfax::vitrine)
 owfax_set_target_options(owfax_tests)
 target_compile_definitions(owfax_tests PRIVATE
   OWFAX_CORPUS_TSV="${CMAKE_CURRENT_SOURCE_DIR}/corpus/corpus.tsv")

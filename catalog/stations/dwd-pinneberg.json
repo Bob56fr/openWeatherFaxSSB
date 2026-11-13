@@ -7,6 +7,12 @@
     "lat": 53.67,
     "lon": 9.81
   },
+  "publication": {
+    "allowed": true,
+    "attribution": "Datenbasis: Deutscher Wetterdienst, Funkaufzeichnung und Dekodierung durch openWeatherFaxSSB (bearbeitet)",
+    "terms_url": "https://www.dwd.de/copyright",
+    "note": "GeoNutzV: source and modifications must be stated. Not yet confirmed specifically for the radiofax broadcasts (see tests/corpus/README.md)."
+  },
   "wefax": {
     "shift_hz": 850,
     "white_offset_hz": 425,

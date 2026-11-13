@@ -47,12 +47,14 @@ include(OwfaxGitInfo)
 add_subdirectory(core)
 add_subdirectory(io)
 add_subdirectory(net)
+add_subdirectory(vitrine)
 
 if(OWFAX_BUILD_CLI)
   add_subdirectory(apps/cli)
 endif()
 if(OWFAX_BUILD_DAEMON)
   add_subdirectory(apps/daemon)
+  add_subdirectory(apps/vitrine)  # station tool, alongside the daemon
 endif()
 
 if(OWFAX_BUILD_TESTS)

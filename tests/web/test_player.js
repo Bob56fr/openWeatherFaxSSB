@@ -111,6 +111,19 @@ test('formatting', function () {
   assert.strictEqual(u.qualityColor(0.3), 'hsl(0, 75%, 42%)');
 });
 
+test('a replay is never called live, and always carries the warning (VIT-004)', function () {
+  for (const lang of ['fr', 'en']) {
+    const all = Object.values(P.strings[lang]).join(' ').toLowerCase();
+    assert.ok(!/live|direct/.test(all), lang);
+    assert.ok(P.strings[lang].badge && P.strings[lang].warning, lang);
+  }
+});
+
+test('nothing is simulated: no random value in the player (VIT-005)', function () {
+  const src = require('fs').readFileSync(path.join(__dirname, '..', '..', 'web', 'vitrine', 'owfax-player.js'), 'utf8');
+  assert.ok(src.indexOf('Math.random') < 0);
+});
+
 test('every text exists in both languages', function () {
   const fr = Object.keys(P.strings.fr).sort(), en = Object.keys(P.strings.en).sort();
   assert.deepStrictEqual(fr, en);

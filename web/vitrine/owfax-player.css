@@ -69,6 +69,18 @@
 }
 .owp-freq { color: var(--owp-accent); font-variant-numeric: tabular-nums; }
 .owp-replay, .owp-receiver { margin: 0; color: var(--owp-muted); font-size: 0.9rem; }
+.owp-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--owp-text);
+  color: var(--owp-bg);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.owp-warning { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--owp-hot); }
 .owp-facts {
   display: flex;
   flex-wrap: wrap;

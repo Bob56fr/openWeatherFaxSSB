@@ -35,7 +35,8 @@
       'phase.wait': 'Écoute de la fréquence', 'phase.apt': 'Tonalité de démarrage (APT)',
       'phase.phasing': 'Phasage', 'phase.image': "Réception de l'image",
       'phase.stop': "Tonalité d'arrêt", 'phase.end': 'Fin de la carte',
-      replay: 'Rediffusion de la réception du {date}',
+      badge: 'Rediffusion', replay: 'réception du {date}',
+      warning: 'Démonstration — ne pas utiliser pour la navigation, consultez les bulletins officiels.',
       smeter: 'S-mètre', vu: 'Niveau audio',
       snr: 'SNR', quality: 'Qualité de la ligne', level: 'Niveau audio', line: 'Ligne',
       time: 'Temps',
@@ -64,7 +65,8 @@
       'phase.wait': 'Listening on the frequency', 'phase.apt': 'Start tone (APT)',
       'phase.phasing': 'Phasing', 'phase.image': 'Receiving the image',
       'phase.stop': 'Stop tone', 'phase.end': 'End of the chart',
-      replay: 'Replay of the reception of {date}',
+      badge: 'Replay', replay: 'received on {date}',
+      warning: 'Demonstration — not for navigation, use the official bulletins.',
       smeter: 'S-meter', vu: 'Audio level',
       snr: 'SNR', quality: 'Line quality', level: 'Audio level', line: 'Line', time: 'Time',
       seek: 'Playback position', seek_text: '{time} of {total}, line {line} of {lines}',
@@ -277,8 +279,13 @@
       .filter(Boolean).join(' · ');
     title.appendChild(el('span', 'owp-freq', freq));
     banner.appendChild(title);
-    banner.appendChild(el('p', 'owp-replay',
+    // Always a replay, never "live", with the reception time and the warning (VIT-004).
+    const replay = el('p', 'owp-replay');
+    replay.appendChild(el('span', 'owp-badge', this.t('badge')));
+    replay.appendChild(document.createTextNode(' ' +
       this.t('replay', { date: formatUtc(m.time && m.time.start_utc) })));
+    banner.appendChild(replay);
+    banner.appendChild(el('p', 'owp-warning', this.t('warning')));
     const facts = [];
     const p = m.path || {};
     if (p.distance_km !== undefined) {
@@ -866,13 +873,14 @@
       const sm = sampleAt(tele.smeter_db_s9, t, tele.interval_s);
       const playing = this.started && !this.audio.paused;
       if (sm !== null) {
-        // A visual effect (PUB-052): readings every 10 s, livened up by the audio level.
+        // A visual effect (PUB-052): readings every 10 s, the needle moved by the measured
+        // audio level in between. Nothing random: every value shown is measured (VIT-005).
         const med = this.medianLevel === undefined ? (this.medianLevel = median(tele.audio_dbfs)) : this.medianLevel;
-        const live = sm + (level !== null ? (level - med) * 0.6 : 0) + (playing ? (Math.random() - 0.5) * 1.5 : 0);
+        const live = sm + (level !== null && playing ? (level - med) * 0.6 : 0);
         pos = meterPosition(live);
         text = sLabel(sm) + ' (' + (sm >= 0 ? '+' : '') + this.num(sm) + ' dB)';
       } else if (level !== null) {
-        pos = vuPosition(level + (playing ? (Math.random() - 0.5) * 1.2 : 0));
+        pos = vuPosition(level);
         text = this.num(level, 1) + ' dBFS';
       }
     }

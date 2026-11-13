@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Bob56fr/openWeatherFaxSSB/docs/schemas/owfax-vitrine-0.1.schema.json",
+  "title": "openWeatherFaxSSB showcase chart package (meta.json)",
+  "description": "One received chart published as a replay on the web showcase. See docs/VITRINE-WEB.md § 4.3.",
+  "type": "object",
+  "required": ["schema", "chart_id", "replay", "software", "station", "receiver", "path", "time",
+               "wefax", "quality", "diversity", "disturbances", "sync", "treatments", "selection", "files"],
+  "additionalProperties": false,
+  "$defs": {
+    "text": { "type": "string" },
+    "nullableNumber": { "type": ["number", "null"] },
+    "file": { "type": "string", "pattern": "^[a-z0-9_.-]+$" }
+  },
+  "properties": {
+    "schema": { "const": "owfax-vitrine/0.1" },
+    "chart_id": { "type": "string", "pattern": "^[0-9]{8}T[0-9]{4}Z_[A-Za-z0-9-]+_[0-9.]+kHz$" },
+    "replay": { "const": true },
+    "software": {
+      "type": "object",
+      "required": ["name", "version", "commit", "source_url"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "const": "openWeatherFaxSSB" },
+        "version": { "$ref": "#/$defs/text" },
+        "commit": { "$ref": "#/$defs/text" },
+        "source_url": { "$ref": "#/$defs/text" }
+      }
+    },
+    "station": {
+      "type": "object",
+      "required": ["id", "name", "callsign", "assigned_khz", "power_kw", "attribution", "terms_url"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/$defs/text" },
+        "callsign": { "$ref": "#/$defs/text" },
+        "assigned_khz": { "type": "number", "exclusiveMinimum": 0 },
+        "power_kw": { "$ref": "#/$defs/nullableNumber" },
+        "attribution": { "$ref": "#/$defs/text" },
+        "terms_url": { "$ref": "#/$defs/text" }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "required": ["locator", "rig", "input", "dial_khz", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "locator": { "type": "string", "pattern": "^[A-R]{2}[0-9]{2}([a-x]{2})?$" },
+        "rig": { "$ref": "#/$defs/text" },
+        "input": { "$ref": "#/$defs/text" },
+        "dial_khz": { "$ref": "#/$defs/nullableNumber" },
+        "mode": { "$ref": "#/$defs/text" }
+      }
+    },
+    "path": {
+      "type": "object",
+      "required": ["distance_km", "distance_nm", "azimuth_deg", "daylight"],
+      "additionalProperties": false,
+      "properties": {
+        "distance_km": { "type": "number", "minimum": 0 },
+        "distance_nm": { "type": "number", "minimum": 0 },
+        "azimuth_deg": { "type": "number", "minimum": 0, "maximum": 360 },
+        "daylight": { "enum": ["day", "night", "mixed"] }
+      }
+    },
+    "time": {
+      "type": "object",
+      "required": ["start_utc", "end_utc", "duration_s"],
+      "additionalProperties": false,
+      "properties": {
+        "start_utc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "end_utc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "duration_s": { "type": "number", "minimum": 0 }
+      }
+    },
+    "wefax": {
+      "type": "object",
+      "required": ["lpm", "ioc", "lines", "width_px", "black_hz", "white_hz", "clock_ppm",
+                   "tuning_offset_hz", "apt_start", "phasing", "apt_stop"],
+      "additionalProperties": false,
+      "properties": {
+        "lpm": { "type": "integer", "minimum": 0 },
+        "ioc": { "enum": [288, 576] },
+        "lines": { "type": "integer", "minimum": 0 },
+        "width_px": { "type": "integer", "minimum": 0 },
+        "black_hz": { "type": "number" },
+        "white_hz": { "type": "number" },
+        "clock_ppm": { "type": "number" },
+        "tuning_offset_hz": { "type": "number" },
+        "apt_start": { "type": "boolean" },
+        "phasing": { "type": "boolean" },
+        "apt_stop": { "type": "boolean" }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": ["mean", "snr_db_median", "lines_bad_fraction"],
+      "additionalProperties": false,
+      "properties": {
+        "mean": { "type": "number", "minimum": 0, "maximum": 1 },
+        "snr_db_median": { "$ref": "#/$defs/nullableNumber" },
+        "lines_bad_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "diversity": {
+      "type": "object",
+      "required": ["enabled", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["receiver", "khz", "contribution"],
+            "properties": {
+              "receiver": { "type": "string" },
+              "khz": { "type": "number" },
+              "contribution": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "disturbances": {
+      "description": "Stretches of 15 s or more where the image is lost (docs/VITRINE-WEB.md § 5). Local ones (receiver overload, interference on board) are muted in the audio.",
+      "type": "object",
+      "required": ["detector", "local_fraction", "fading_fraction", "zones"],
+      "additionalProperties": false,
+      "properties": {
+        "detector": { "type": "string" },
+        "local_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fading_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["start_s", "end_s", "first_line", "last_line", "cause", "local", "muted", "indicators"],
+            "additionalProperties": false,
+            "properties": {
+              "start_s": { "type": "number" },
+              "end_s": { "type": "number" },
+              "first_line": { "type": "integer", "minimum": 0 },
+              "last_line": { "type": "integer", "minimum": 0 },
+              "cause": { "enum": ["fading", "overload", "impulsive_interference", "broadband_interference"] },
+              "local": { "type": "boolean" },
+              "muted": { "type": "boolean" },
+              "indicators": {
+                "type": "array",
+                "items": { "enum": ["clipping", "level_jump", "smeter_high", "impulsive", "periodic", "broadband", "abrupt_edges"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sync": {
+      "description": "Seconds from the start of the audio file. Line n (0-based) starts at image_s + n × line_period_s.",
+      "type": "object",
+      "required": ["audio_duration_s", "apt_start_s", "phasing_s", "image_s", "image_end_s", "line_period_s"],
+      "additionalProperties": false,
+      "properties": {
+        "audio_duration_s": { "type": "number", "minimum": 0 },
+        "apt_start_s": { "$ref": "#/$defs/nullableNumber" },
+        "phasing_s": { "$ref": "#/$defs/nullableNumber" },
+        "image_s": { "type": "number" },
+        "image_end_s": { "type": "number" },
+        "line_period_s": { "type": "number", "minimum": 0 }
+      }
+    },
+    "treatments": {
+      "type": "object",
+      "required": ["raw", "enhanced"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "array", "items": { "type": "string" } },
+        "enhanced": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["publish", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "publish": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "items": { "enum": ["no_image", "incomplete", "low_quality", "local_disturbance", "station_not_allowed"] }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "required": ["raw", "enhanced", "thumb", "audio", "telemetry"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "$ref": "#/$defs/file" },
+        "enhanced": { "oneOf": [{ "$ref": "#/$defs/file" }, { "type": "null" }] },
+        "thumb": { "$ref": "#/$defs/file" },
+        "audio": { "$ref": "#/$defs/file" },
+        "telemetry": { "$ref": "#/$defs/file" }
+      }
+    }
+  }
+}

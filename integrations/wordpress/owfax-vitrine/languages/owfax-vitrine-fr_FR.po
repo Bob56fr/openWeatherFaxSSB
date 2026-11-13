@@ -1,0 +1,268 @@
+# French translation of the openWeatherFaxSSB showcase plugin.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+msgid ""
+msgstr ""
+"Project-Id-Version: owfax-vitrine\n"
+"Language: fr_FR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Showcase settings"
+msgstr "Réglages de la vitrine"
+
+msgid "Settings"
+msgstr "Réglages"
+
+msgid "Weather fax showcase"
+msgstr "Vitrine des cartes météo"
+
+msgid "Storage"
+msgstr "Stockage"
+
+msgid "Space used"
+msgstr "Espace occupé"
+
+msgid "Charts"
+msgstr "Cartes"
+
+msgid "Charts to keep"
+msgstr "Cartes à conserver"
+
+msgid "Oldest chart"
+msgstr "Carte la plus ancienne"
+
+msgid "Quota reached"
+msgstr "Quota atteint"
+
+msgid "nothing received in the last 7 days"
+msgstr "rien reçu ces 7 derniers jours"
+
+msgid "in %s days at the pace of the last 7 days, then the oldest charts are purged"
+msgstr "dans %s jours au rythme des 7 derniers jours, puis les cartes les plus anciennes sont purgées"
+
+msgid "Retention"
+msgstr "Conservation"
+
+msgid "The first limit reached purges the oldest charts, with their sound and their page. The charts marked \"to keep\" are never purged."
+msgstr "La première limite atteinte purge les cartes les plus anciennes, avec leur son et leur page. Les cartes marquées « à conserver » ne sont jamais purgées."
+
+msgid "Disk quota"
+msgstr "Quota disque"
+
+msgid "MB"
+msgstr "Mo"
+
+msgid "Maximum age"
+msgstr "Âge maximum"
+
+msgid "days"
+msgstr "jours"
+
+msgid "Maximum number"
+msgstr "Nombre maximum"
+
+msgid "charts"
+msgstr "cartes"
+
+msgid "Publication"
+msgstr "Publication"
+
+msgid "New charts"
+msgstr "Nouvelles cartes"
+
+msgid "published at once"
+msgstr "publiées tout de suite"
+
+msgid "saved as drafts, to publish by hand"
+msgstr "en brouillon, à publier à la main"
+
+msgid "Sends accepted per hour"
+msgstr "Envois acceptés par heure"
+
+msgid "Uninstall"
+msgstr "Désinstallation"
+
+msgid "delete the charts and their files when the plugin is uninstalled"
+msgstr "supprimer les cartes et leurs fichiers à la désinstallation de l'extension"
+
+msgid "Station account"
+msgstr "Compte de la station"
+
+msgid "Create a user with the role \"owfax publisher\": it can send charts, and nothing else."
+msgstr "Créez un utilisateur avec le rôle « owfax publisher » : il peut envoyer des cartes, et rien d'autre."
+
+msgid "In its profile, create an application password, and give it to the station with the user name."
+msgstr "Dans son profil, créez un mot de passe d'application, et donnez-le à la station avec le nom d'utilisateur."
+
+msgid "The station sends to %s, over HTTPS only."
+msgstr "La station envoie à %s, en HTTPS uniquement."
+
+msgid "On nginx, the uploads/owfax/.htaccess file is ignored: forbid scripts in that directory and add the cache headers by hand (see readme.txt)."
+msgstr "Sous nginx, le fichier uploads/owfax/.htaccess est ignoré : interdisez les scripts dans ce dossier et ajoutez les en-têtes de cache à la main (voir readme.txt)."
+
+msgid "Refused sends"
+msgstr "Envois refusés"
+
+msgid "None."
+msgstr "Aucun."
+
+msgid "Time (UTC)"
+msgstr "Heure (UTC)"
+
+msgid "Chart"
+msgstr "Carte"
+
+msgid "Reason"
+msgstr "Motif"
+
+msgid "Weather fax charts"
+msgstr "Cartes météo fax"
+
+msgid "Weather fax chart"
+msgstr "Carte météo fax"
+
+msgid "Weather fax"
+msgstr "Météo fax"
+
+msgid "Search charts"
+msgstr "Chercher des cartes"
+
+msgid "No chart received yet."
+msgstr "Aucune carte reçue pour l'instant."
+
+msgid "To keep: never purged (at most 20 % of the quota)."
+msgstr "À conserver : jamais purgée (20 % du quota au plus)."
+
+msgid "Not kept: the charts to keep would exceed 20 % of the quota."
+msgstr "Non conservée : les cartes à conserver dépasseraient 20 % du quota."
+
+msgid "Quality"
+msgstr "Qualité"
+
+msgid "Distance"
+msgstr "Distance"
+
+msgid "Size"
+msgstr "Taille"
+
+msgid "To keep"
+msgstr "À conserver"
+
+msgid "No chart published yet."
+msgstr "Aucune carte publiée pour l'instant."
+
+msgid "Replay"
+msgstr "Rediffusion"
+
+msgid "Demonstration — not for navigation, use the official bulletins."
+msgstr "Démonstration — ne pas utiliser pour la navigation, consultez les bulletins officiels."
+
+msgid "Stations"
+msgstr "Stations"
+
+msgid "All stations"
+msgstr "Toutes les stations"
+
+msgid "Quality %d %%"
+msgstr "Qualité %d %%"
+
+msgid "Station"
+msgstr "Station"
+
+msgid "Best quality"
+msgstr "Meilleure qualité"
+
+msgid "Frequency"
+msgstr "Fréquence"
+
+msgid "daylight path"
+msgstr "trajet de jour"
+
+msgid "night path"
+msgstr "trajet de nuit"
+
+msgid "day and night path"
+msgstr "trajet jour et nuit"
+
+msgid "%1$s km (%2$s NM), bearing %3$s°"
+msgstr "%1$s km (%2$s NM), azimut %3$s°"
+
+msgid "Received (UTC)"
+msgstr "Reçue (UTC)"
+
+msgid "%1$s lines, %2$s lpm, IOC %3$s"
+msgstr "%1$s lignes, %2$s lpm, IOC %3$s"
+
+msgid "%1$s %% of the lines, median SNR %2$s dB"
+msgstr "%1$s %% des lignes, SNR médian %2$s dB"
+
+msgid "Receiver"
+msgstr "Récepteur"
+
+msgid "Diversity"
+msgstr "Diversité"
+
+msgid "yes"
+msgstr "oui"
+
+msgid "no"
+msgstr "non"
+
+msgid "click removal"
+msgstr "suppression des clics"
+
+msgid "Enhanced image"
+msgstr "Image améliorée"
+
+msgid "no treatment"
+msgstr "aucun traitement"
+
+msgid "Local disturbance"
+msgstr "Perturbation locale"
+
+msgid "%s %% of the lines, sound muted there"
+msgstr "%s %% des lignes, son coupé à ces endroits"
+
+msgid "Terms of use"
+msgstr "Conditions d'utilisation"
+
+msgid "Received and decoded by %1$s (%2$s), free software."
+msgstr "Reçue et décodée par %1$s (%2$s), logiciel libre."
+
+msgid "weather fax received %1$s km away, %2$s %% of the lines good."
+msgstr "carte météo fax reçue à %1$s km, %2$s %% des lignes bonnes."
+
+msgid "owfax publisher"
+msgstr "owfax publisher"
+
+msgid "Weather fax replay"
+msgstr "Rediffusion météo fax"
+
+msgid "The latest chart replayed with its sound, or the latest ones in a loop."
+msgstr "La dernière carte rejouée avec son son, ou les dernières en boucle."
+
+msgid "Charts in the loop"
+msgstr "Cartes dans la boucle"
+
+msgid "Speed"
+msgstr "Vitesse"
+
+msgid "Catalogue id, for example dwd-pinneberg; empty: all."
+msgstr "Identifiant du catalogue, par exemple dwd-pinneberg ; vide : toutes."
+
+msgid "Weather fax gallery"
+msgstr "Galerie météo fax"
+
+msgid "Thumbnails of the latest charts, with distance, date and quality."
+msgstr "Vignettes des dernières cartes, avec la distance, la date et la qualité."
+
+msgid "Catalogue id; empty: all, with a filter."
+msgstr "Identifiant du catalogue ; vide : toutes, avec un filtre."
+
+msgid "One chart, by its id."
+msgstr "Une carte, par son identifiant."
+
+msgid "Chart id"
+msgstr "Identifiant de la carte"

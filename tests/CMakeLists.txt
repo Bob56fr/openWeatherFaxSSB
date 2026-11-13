@@ -31,3 +31,23 @@ find_program(OWFAX_NODE node)
 if(OWFAX_NODE)
   add_test(NAME web_player COMMAND ${OWFAX_NODE} ${CMAKE_CURRENT_SOURCE_DIR}/web/test_player.js)
 endif()
+
+# The WordPress plugin ships copies of the replay player and of the package schema.
+set(OWFAX_WP ${PROJECT_SOURCE_DIR}/integrations/wordpress)
+foreach(pair "web/vitrine/owfax-player.js|assets/owfax-player.js"
+             "web/vitrine/owfax-player.css|assets/owfax-player.css"
+             "docs/schemas/owfax-vitrine-0.1.schema.json|schema/owfax-vitrine-0.1.schema.json")
+  string(REPLACE "|" ";" files "${pair}")
+  list(GET files 0 original)
+  list(GET files 1 copy)
+  get_filename_component(name "${copy}" NAME)
+  add_test(NAME wordpress_copy_${name}
+           COMMAND ${CMAKE_COMMAND} -E compare_files ${PROJECT_SOURCE_DIR}/${original}
+                   ${OWFAX_WP}/owfax-vitrine/${copy})
+endforeach()
+
+# Rules of the WordPress plugin (schema, file types, purge), when PHP is there.
+find_program(OWFAX_PHP php)
+if(OWFAX_PHP)
+  add_test(NAME wordpress_rules COMMAND ${OWFAX_PHP} ${OWFAX_WP}/tests/test-rules.php)
+endif()

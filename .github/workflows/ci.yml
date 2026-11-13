@@ -188,14 +188,29 @@ jobs:
         run: bash tools/capture/tests/test_band_guard.sh
 
   web:
-    name: Web interface (JavaScript syntax, translations)
+    name: Web interface and WordPress plugin (syntax, tests, translations)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: JavaScript syntax
-        run: node --check web/app.js
+        run: |
+          for f in web/app.js web/vitrine/*.js integrations/wordpress/owfax-vitrine/assets/*.js; do
+            node --check "$f"
+          done
       - name: Translations complete (UI-005)
         run: python3 tools/web/check_i18n.py
+      - name: Replay player timing (PLY-001)
+        run: node tests/web/test_player.js
+      - name: WordPress plugin ships the same player and schema
+        run: |
+          cmp web/vitrine/owfax-player.js integrations/wordpress/owfax-vitrine/assets/owfax-player.js
+          cmp web/vitrine/owfax-player.css integrations/wordpress/owfax-vitrine/assets/owfax-player.css
+          cmp docs/schemas/owfax-vitrine-0.1.schema.json             integrations/wordpress/owfax-vitrine/schema/owfax-vitrine-0.1.schema.json
+      - name: WordPress plugin (PHP syntax, rules, translations; WPP-043)
+        run: |
+          find integrations/wordpress -name '*.php' -print0 | xargs -0 -n1 php -l
+          php integrations/wordpress/tests/test-rules.php
+          python3 integrations/wordpress/tools/i18n.py --check
 
   format:
     name: clang-format

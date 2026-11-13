@@ -1,0 +1,268 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 openWeatherFaxSSB contributors
+   Replay player of the web showcase (docs/VITRINE-WEB.md § 7). Takes the colours of
+   the station dashboard when present (--panel, --text…), its own otherwise (WordPress);
+   light and dark, responsive down to 360 px (PLY-023), touch targets >= 44 px. */
+
+.owp {
+  --owp-bg: var(--panel, #ffffff);
+  --owp-text: var(--text, #13202b);
+  --owp-muted: var(--muted, #56656f);
+  --owp-line: var(--line, #d3dbe2);
+  --owp-accent: var(--accent, #0b5cad);
+  --owp-accent-text: var(--accent-text, #ffffff);
+  --owp-track: #e6ebef;
+  --owp-screen: #1b2228;
+  --owp-hot: #c62b1f;
+  --owp-needle: #b3261e;
+  --owp-chart-filter: var(--chart-filter, none);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--owp-line);
+  border-radius: 12px;
+  background: var(--owp-bg);
+  color: var(--owp-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .owp {
+    --owp-bg: var(--panel, #182129);
+    --owp-text: var(--text, #e4ebf0);
+    --owp-muted: var(--muted, #a3b3bf);
+    --owp-line: var(--line, #2c3945);
+    --owp-accent: var(--accent, #5aa6f0);
+    --owp-accent-text: var(--accent-text, #08131d);
+    --owp-track: #222d36;
+    --owp-hot: #ff7a70;
+    --owp-needle: #ff6a5e;
+  }
+}
+
+/* The dashboard's explicit themes win over the system preference. */
+:root[data-theme="light"] .owp { --owp-track: #e6ebef; --owp-hot: #c62b1f; --owp-needle: #b3261e; }
+:root[data-theme="dark"] .owp { --owp-track: #222d36; --owp-hot: #ff7a70; --owp-needle: #ff6a5e; }
+:root[data-theme="night"] .owp {
+  --owp-track: #120000;
+  --owp-screen: #000000;
+  --owp-hot: #ff3b2e;
+  --owp-needle: #ff3b2e;
+}
+
+.owp *, .owp *::before, .owp *::after { box-sizing: border-box; }
+.owp [hidden] { display: none !important; }
+
+.owp-message { margin: 0; color: var(--owp-muted); }
+
+/* ---------------------------------------------------------------- banner */
+
+.owp-banner { display: grid; gap: 2px; }
+.owp-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 1.15rem;
+}
+.owp-freq { color: var(--owp-accent); font-variant-numeric: tabular-nums; }
+.owp-replay, .owp-receiver { margin: 0; color: var(--owp-muted); font-size: 0.9rem; }
+.owp-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--owp-text);
+  color: var(--owp-bg);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.owp-warning { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--owp-hot); }
+.owp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.owp-facts li:not(:last-child)::after { content: " ·"; color: var(--owp-muted); }
+
+/* ---------------------------------------------------------------- screen */
+
+.owp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 14px;
+  align-items: start;
+}
+
+.owp-screen { display: grid; gap: 6px; min-width: 0; }
+
+.owp-phase {
+  margin: 0;
+  font-weight: 600;
+  min-height: 1.4em;
+}
+.owp[data-phase="image"] .owp-phase { color: var(--owp-accent); }
+.owp[data-phase="stop"] .owp-phase, .owp[data-phase="end"] .owp-phase { color: var(--owp-muted); }
+
+.owp-viewport {
+  position: relative;
+  max-height: min(70vh, 820px);
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--owp-screen);
+  overscroll-behavior: contain;
+}
+/* Before the start: the thumbnail, sized like the chart. */
+.owp:not(.owp-started) .owp-viewport { overflow: hidden; }
+
+.owp-canvas, .owp-poster {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: var(--owp-chart-filter);
+}
+.owp:not(.owp-started) .owp-canvas { display: none; }
+.owp-poster { opacity: 0.55; }
+
+.owp-bigplay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  padding: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--owp-accent);
+  color: var(--owp-accent-text);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.owp-bigplay svg { width: 100%; height: 100%; margin-left: 3px; }
+
+.owp-legend { margin: 0; color: var(--owp-muted); font-size: 0.82rem; }
+.owp-hatch-key::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  background: repeating-linear-gradient(-45deg, rgba(230, 120, 0, 0.85) 0 3px, transparent 3px 6px);
+}
+
+/* ----------------------------------------------------------- instruments */
+
+.owp-instruments { display: grid; gap: 10px; }
+
+.owp-meter {
+  padding: 8px 8px 6px;
+  border: 1px solid var(--owp-line);
+  border-radius: 10px;
+  background: linear-gradient(var(--owp-bg), var(--owp-track));
+  text-align: center;
+}
+.owp-meter svg { display: block; width: 100%; height: auto; }
+.owp-meter-caption, .owp-meter-reading { margin: 0; font-size: 0.82rem; color: var(--owp-muted); }
+.owp-meter-reading { font-variant-numeric: tabular-nums; color: var(--owp-text); font-weight: 600; }
+.owp-scale { stroke: var(--owp-text); stroke-width: 2; }
+.owp-scale.owp-hot { stroke: var(--owp-hot); stroke-width: 3; }
+.owp-tick { stroke: var(--owp-text); stroke-width: 1.5; }
+.owp-tick.owp-hot { stroke: var(--owp-hot); }
+.owp-label { fill: var(--owp-text); font-size: 11px; font-family: inherit; }
+.owp-label.owp-hot { fill: var(--owp-hot); }
+.owp-unit { fill: var(--owp-muted); font-size: 13px; font-family: inherit; }
+.owp-needle { stroke: var(--owp-needle); stroke-width: 2.4; stroke-linecap: round; }
+.owp-hub { fill: var(--owp-text); }
+
+.owp-values {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin: 0;
+}
+.owp-values > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--owp-line);
+}
+.owp-values dt { color: var(--owp-muted); font-size: 0.85rem; }
+.owp-values dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* -------------------------------------------------------------- timeline */
+
+.owp-timeline {
+  display: block;
+  width: 100%;
+  height: 52px;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+.owp-timeline:focus-visible, .owp button:focus-visible {
+  outline: 3px solid var(--owp-accent);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------- controls */
+
+.owp-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.owp-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+.owp button:not(.owp-bigplay) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--owp-line);
+  border-radius: 8px;
+  background: var(--owp-bg);
+  color: var(--owp-text);
+  font: inherit;
+  cursor: pointer;
+}
+.owp button svg { width: 20px; height: 20px; flex: none; }
+.owp button.owp-play, .owp button.owp-listen[aria-pressed="false"] {
+  background: var(--owp-accent);
+  border-color: var(--owp-accent);
+  color: var(--owp-accent-text);
+  font-weight: 600;
+}
+.owp button[aria-pressed="true"]:not(.owp-listen) {
+  background: var(--owp-text);
+  border-color: var(--owp-text);
+  color: var(--owp-bg);
+}
+
+.owp-attribution { margin: 0; color: var(--owp-muted); font-size: 0.8rem; }
+.owp-attribution a { color: var(--owp-accent); }
+
+/* ---------------------------------------------------- phones (PLY-023) */
+
+@media (max-width: 720px) {
+  .owp { padding: 10px; gap: 10px; }
+  .owp-body { grid-template-columns: 1fr; }
+  .owp-instruments { grid-template-columns: minmax(0, 150px) minmax(0, 1fr); align-items: start; }
+  .owp-viewport { max-height: 60vh; }
+}
+
+@media (max-width: 400px) {
+  .owp-instruments { grid-template-columns: 1fr; }
+  .owp-meter { max-width: 220px; justify-self: center; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .owp-viewport { scroll-behavior: auto; }
+}

@@ -291,7 +291,7 @@ Ordre de grandeur, à 5 à 15 cartes par jour et 3 à 7 Mo par carte : 15 à 105
   - `[owfax_player]` : le lecteur de rediffusion, sur la dernière carte ou en boucle sur les N dernières (`playlist="10"`) ;
   - `[owfax_gallery]` : la galerie en grille de vignettes, filtrable par station, avec la distance, la date et un badge de qualité ;
   - `[owfax_chart id="…"]` : une carte précise.
-- **WPP-021 (DOIT)** — Chaque carte a sa page publique (permalien `/fax/<chart_id>/`) avec le lecteur et les métadonnées complètes. Elle comporte les balises Open Graph et Twitter Card (vignette, titre « DWD Pinneberg — 13 882,5 kHz — 10/11/2026 14:24 UTC ») pour le partage sur les réseaux sociaux.
+- **WPP-021 (DOIT)** — Chaque carte a sa page publique (permalien `/fax/<chart_id>/`) avec le lecteur et les métadonnées complètes. Elle comporte les balises Open Graph et Twitter Card (vignette, titre « DWD Pinneberg — 13 882,5 kHz — 10/11/2026 14:24 UTC ») pour le partage sur les réseaux sociaux. Le permalien reprend le `chart_id` sous la forme que WordPress donne aux adresses : en minuscules, le point remplacé par un tiret (`/fax/20261110t1007z_ddk6_13882-5khz/`).
 - **WPP-022 (DOIT)** — Chaque page de carte affiche l'attribution de la source (PUB-024), le badge « Rediffusion » et l'avertissement de VIT-004, un lien vers le projet, et la version d'openWeatherFaxSSB qui a reçu la carte.
 - **WPP-023 (DEVRAIT)** — Un widget « prochaine réception planifiée » montre la prochaine carte que la station prévoit de recevoir. owfaxd l'envoie avec chaque paquet, sous forme d'une liste des 24 h suivantes.
 - **WPP-030 (DEVRAIT)** — `[owfax_stations]` : la liste des sources reçues, avec la distance, le nombre de cartes publiées et la meilleure qualité obtenue.
@@ -375,5 +375,5 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 2. ~~Licence du plugin~~ — **Réglé le 2026-11-10** : le plugin est personnel et non distribué, la question ne se pose pas.
 3. **Commande CI-V exacte** de lecture de l'état OVF, à confirmer sur le manuel (lot 6). Pour le S-mètre, aucun étalonnage n'est prévu (PUB-052).
 4. **Seuils par défaut** (`min_run_s` = 15 s, `max_local_fraction` = 15 %, qualité minimale = 60 %) : à ajuster après un mois de réceptions réelles, à partir des cartes refusées conservées en local (PUB-026).
-5. **Emplacement du plugin dans le dépôt** : proposition `integrations/wordpress/owfax-vitrine/`.
+5. ~~Emplacement du plugin dans le dépôt~~ — **Réglé le 2026-11-13** : `integrations/wordpress/owfax-vitrine/`, avec ses tests dans `integrations/wordpress/tests/`.
 6. **Hébergement du WordPress** et activation éventuelle du CDN de l'hébergeur (WPP-045).

@@ -314,7 +314,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 
 ### 7.1 Déroulement
 
-- **PLY-001 (DOIT)** — **Le son sert d'horloge.** La ligne affichée se déduit de la position de lecture du son et de `sync` (PUB-033). Le canvas révèle l'image **ligne par ligne**, du haut vers le bas, au rythme réel (2 lignes/s à 120 lpm). Avancer ou reculer dans le son réaffiche l'image jusqu'à la ligne correspondante.
+- **PLY-001 (DOIT)** — **Le son sert d'horloge.** La ligne affichée se déduit de la position de lecture du son et de `sync` (PUB-033). Le canvas révèle l'image **ligne par ligne**, du haut vers le bas, au rythme réel (2 lignes/s à 120 lpm). Avancer ou reculer dans le son réaffiche l'image jusqu'à la ligne correspondante. La période de ligne se calcule comme (`image_end_s` − `image_s`) / nombre de lignes, car `line_period_s` est arrondi : sinon la dernière ligne ne serait jamais complète.
 - **PLY-002 (DOIT)** — Les phases sont signalées : « Tonalité de démarrage (APT) », « Phasage », « Réception de l'image », « Tonalité d'arrêt ».
 - **PLY-003 (DOIT)** — Vitesses de lecture ×1 (défaut, temps réel), ×4 et ×10. En accéléré, la hauteur du son est conservée (`preservesPitch`).
 - **PLY-004 (DOIT)** — Le son est coupé par défaut, à cause des règles d'autoplay des navigateurs. Un bouton « Écouter » bien visible le déclenche, et la lecture sans son reste possible.
@@ -328,7 +328,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 - **PLY-011 (DOIT)** — Les **valeurs numériques** du moment : SNR (dB), qualité de la ligne en cours (%), niveau audio (dBFS), ligne n / total, temps écoulé / durée.
 - **PLY-012 (DOIT)** — Une **bande de qualité** le long de l'image : une colonne colorée qui donne `line_quality` ligne par ligne.
 - **PLY-013 (DEVRAIT)** — Une **chute d'eau (waterfall)** calculée **dans le navigateur** à partir du son réel (Web Audio `AnalyserNode`), sur la bande 1000 à 2800 Hz, avec des repères à 1500 Hz (noir) et 2300 Hz (blanc). Elle ne demande aucun stockage supplémentaire.
-- **PLY-014 (DEVRAIT)** — Un mini-graphe de SNR et de qualité sur toute la durée de la carte, avec un curseur à la position courante.
+- **PLY-014 (DEVRAIT)** — Un mini-graphe de SNR et de qualité sur toute la durée de la carte, avec un curseur à la position courante. Il sert aussi de barre de déplacement, à la souris, au doigt et au clavier.
 - **PLY-015 (DOIT)** — Un bandeau d'information : source, fréquence, puissance, distance et azimut, jour/nuit, récepteur, diversité oui/non, traitements appliqués.
 
 ### 7.3 Contraintes techniques
@@ -339,6 +339,7 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
 - **PLY-023 (DOIT)** — L'affichage est responsive jusqu'à 360 px de large : sur téléphone, les instruments passent sous l'image. Modes clair et sombre.
 - **PLY-024 (DOIT)** — Accessibilité : commandes utilisables au clavier, libellés ARIA, et contrastes conformes WCAG AA.
 - **PLY-025 (DEVRAIT)** — Le lecteur est aussi intégré au dashboard local de la station, pour tester un paquet avant sa publication.
+- **PLY-026 (DOIT)** — Le lecteur tient dans deux fichiers autonomes, `web/vitrine/owfax-player.js` et `owfax-player.css`, que le plugin WordPress reprend tels quels. Dans le dashboard, la page Vitrine lit les paquets que `owfaxd --vitrine <dossier>` sert sur `/api/v1/vitrine`, avec les requêtes `Range` dont les navigateurs ont besoin pour se déplacer dans le son.
 
 ---
 
@@ -373,6 +374,6 @@ L'objectif est que le visiteur ait l'impression de **regarder un vrai logiciel d
    - autres stations à leur ajout.
 2. ~~Licence du plugin~~ — **Réglé le 2026-11-10** : le plugin est personnel et non distribué, la question ne se pose pas.
 3. **Commande CI-V exacte** de lecture de l'état OVF, à confirmer sur le manuel (lot 6). Pour le S-mètre, aucun étalonnage n'est prévu (PUB-052).
-4. **Seuils par défaut** (`min_run_s` = 15 s, `max_saturated_fraction` = 15 %, qualité minimale = 60 %) : à ajuster après un mois de réceptions réelles, à partir des cartes refusées conservées en local (PUB-026).
+4. **Seuils par défaut** (`min_run_s` = 15 s, `max_local_fraction` = 15 %, qualité minimale = 60 %) : à ajuster après un mois de réceptions réelles, à partir des cartes refusées conservées en local (PUB-026).
 5. **Emplacement du plugin dans le dépôt** : proposition `integrations/wordpress/owfax-vitrine/`.
 6. **Hébergement du WordPress** et activation éventuelle du CDN de l'hébergeur (WPP-045).

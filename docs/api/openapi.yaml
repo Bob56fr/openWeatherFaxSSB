@@ -205,6 +205,51 @@ paths:
             application/json:
               schema: { type: object }
         "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/vitrine:
+    get:
+      summary: Web showcase packages (docs/VITRINE-WEB.md), newest first
+      description: |
+        The `meta.json` of every package found in the `--vitrine` directory
+        (schema docs/schemas/owfax-vitrine-0.1.schema.json), for the replay player.
+        404 when owfaxd runs without `--vitrine`.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, default: 200 }
+      responses:
+        "200":
+          description: One meta.json object per package
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/vitrine/{chart_id}/{file}:
+    parameters:
+      - name: chart_id
+        in: path
+        required: true
+        schema: { type: string, example: 20261110T0945Z_DDK6_13882.5kHz }
+      - name: file
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [meta.json, telemetry.json, raw.webp, enh.webp, thumb.webp, audio.m4a]
+      - name: Range
+        in: header
+        required: false
+        description: One byte range (`bytes=a-b`, `bytes=a-`, `bytes=-n`), to seek in the sound.
+        schema: { type: string, example: "bytes=0-65535" }
+    get:
+      summary: One file of a package
+      responses:
+        "200":
+          description: The whole file
+        "206":
+          description: The requested byte range (Content-Range)
+        "404": { $ref: "#/components/responses/NotFound" }
+        "416":
+          description: Range beyond the end of the file
   /api/v1/live:
     get:
       summary: Live stream over WebSocket (DSP-007)

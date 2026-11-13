@@ -263,6 +263,87 @@ OWFAX_TEST(net_api_serves_charts_stations_and_errors) {
     fs::remove_all(root);
 }
 
+OWFAX_TEST(net_api_serves_vitrine_packages_by_range) {
+    const fs::path root = fs::temp_directory_path() / "owfax_test_vitrine";
+    fs::remove_all(root);
+    const std::string older = "20261110T0945Z_DDK6_13882.5kHz";
+    const std::string newer = "20261110T1007Z_DDK6_13882.5kHz";
+    fs::create_directories(root / "pkg" / older);
+    fs::create_directories(root / "pkg" / newer);
+    fs::create_directories(root / "pkg" / "not-a-package");
+    write_file(root / "pkg" / older / "meta.json", "{\"chart_id\": \"" + older + "\"}\n");
+    write_file(root / "pkg" / newer / "meta.json", "{\"chart_id\": \"" + newer + "\"}\n");
+    write_file(root / "pkg" / "not-a-package" / "meta.json", "{\"chart_id\": \"intruder\"}\n");
+    write_file(root / "pkg" / newer / "audio.m4a", "0123456789");
+    write_file(root / "pkg" / newer / "raw.webp", "RIFFwebp");
+    write_file(root / "pkg" / newer / "notes.txt", "private");
+
+    ApiConfig cfg;
+    cfg.vitrine_dir = (root / "pkg").string();
+    Api api(cfg);
+    HttpServer::Options opt;
+    opt.bind = "127.0.0.1";
+    opt.port = 0;
+    HttpServer server(opt, api.handler());
+    const int port = server.port();
+    const std::string audio = "/api/v1/vitrine/" + newer + "/audio.m4a";
+    auto ranged = [&](const std::string& range) {
+        return raw_request(
+            port, "GET " + audio + " HTTP/1.1\r\nHost: test\r\nRange: " + range + "\r\n\r\n");
+    };
+
+    auto r = get(port, "/api/v1/vitrine");
+    OWFAX_CHECK(r.status == 200);
+    const auto n = r.body.find("1007Z"), o = r.body.find("0945Z");
+    OWFAX_CHECK(n != std::string::npos && o != std::string::npos && n < o);
+    OWFAX_CHECK(r.body.find("intruder") == std::string::npos);
+    r = get(port, "/api/v1/vitrine?limit=1");
+    OWFAX_CHECK(r.body.find("1007Z") != std::string::npos);
+    OWFAX_CHECK(r.body.find("0945Z") == std::string::npos);
+
+    r = get(port, audio);
+    OWFAX_CHECK(r.status == 200 && r.body == "0123456789");
+    OWFAX_CHECK(r.head.find("Content-Type: audio/mp4") != std::string::npos);
+    OWFAX_CHECK(r.head.find("Accept-Ranges: bytes") != std::string::npos);
+    r = get(port, "/api/v1/vitrine/" + newer + "/raw.webp");
+    OWFAX_CHECK(r.status == 200 && r.head.find("Content-Type: image/webp") != std::string::npos);
+
+    // Ranges, as browsers ask for them to seek in the sound.
+    r = ranged("bytes=2-5");
+    OWFAX_CHECK(r.status == 206 && r.body == "2345");
+    OWFAX_CHECK(r.head.find("Content-Range: bytes 2-5/10") != std::string::npos);
+    OWFAX_CHECK(r.head.find("Content-Length: 4") != std::string::npos);
+    r = ranged("bytes=0-");
+    OWFAX_CHECK(r.status == 206 && r.body == "0123456789");
+    r = ranged("bytes=7-99");
+    OWFAX_CHECK(r.status == 206 && r.body == "789");
+    r = ranged("bytes=-3");
+    OWFAX_CHECK(r.status == 206 && r.body == "789");
+    r = ranged("bytes=10-");
+    OWFAX_CHECK(r.status == 416 && r.head.find("Content-Range: bytes */10") != std::string::npos);
+    r = ranged("bytes=0-1,4-5");  // several ranges: the whole file
+    OWFAX_CHECK(r.status == 200 && r.body == "0123456789");
+    r = ranged("bytes=5-2");  // malformed: the whole file
+    OWFAX_CHECK(r.status == 200 && r.body == "0123456789");
+    r = raw_request(port, "HEAD " + audio + " HTTP/1.1\r\nHost: test\r\nRange: bytes=0-1\r\n\r\n");
+    OWFAX_CHECK(r.status == 206 && r.body.empty());
+
+    // Only the package files, only from package directories.
+    OWFAX_CHECK(get(port, "/api/v1/vitrine/" + newer + "/notes.txt").status == 404);
+    OWFAX_CHECK(get(port, "/api/v1/vitrine/" + newer + "/enh.webp").status == 404);
+    OWFAX_CHECK(get(port, "/api/v1/vitrine/not-a-package/meta.json").status == 404);
+    OWFAX_CHECK(get(port, "/api/v1/vitrine/..%2F" + newer + "/meta.json").status == 404);
+    OWFAX_CHECK(get(port, "/api/v1/vitrine/" + newer).status == 404);
+    server.stop();
+
+    // Without --vitrine there is nothing to serve.
+    Api none(ApiConfig{});
+    HttpServer server2(opt, none.handler());
+    OWFAX_CHECK(get(server2.port(), "/api/v1/vitrine").status == 404);
+    server2.stop();
+    fs::remove_all(root);
+}
+
 OWFAX_TEST(net_websocket_live_stream) {
     Api api(ApiConfig{});
     api.set_status("{\"state\": \"receiving\"}");

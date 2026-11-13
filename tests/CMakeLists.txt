@@ -25,3 +25,9 @@ target_compile_definitions(owfax_tests PRIVATE
 
 add_test(NAME owfax_tests COMMAND owfax_tests)
 set_tests_properties(owfax_tests PROPERTIES TIMEOUT 600)
+
+# Timing logic of the web showcase replay player (JavaScript), when Node.js is there.
+find_program(OWFAX_NODE node)
+if(OWFAX_NODE)
+  add_test(NAME web_player COMMAND ${OWFAX_NODE} ${CMAKE_CURRENT_SOURCE_DIR}/web/test_player.js)
+endif()

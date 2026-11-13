@@ -109,6 +109,7 @@ const char* status_text(int status) {
     switch (status) {
         case 101: return "Switching Protocols";
         case 200: return "OK";
+        case 206: return "Partial Content";
         case 304: return "Not Modified";
         case 400: return "Bad Request";
         case 403: return "Forbidden";
@@ -118,6 +119,7 @@ const char* status_text(int status) {
         case 409: return "Conflict";
         case 411: return "Length Required";
         case 413: return "Payload Too Large";
+        case 416: return "Range Not Satisfiable";
         case 429: return "Too Many Requests";
         case 408: return "Request Timeout";
         case 426: return "Upgrade Required";

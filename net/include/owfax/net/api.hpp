@@ -12,6 +12,10 @@
 //   GET /api/v1/charts/{stem}/{live|raw|enhanced}.png
 //   GET /api/v1/stations                      station catalogue
 //   GET /api/v1/stations/{id}
+//   GET /api/v1/vitrine[?limit=N]             web showcase packages (their meta.json),
+//                                             newest first (docs/VITRINE-WEB.md)
+//   GET /api/v1/vitrine/{chart_id}/{file}     meta.json, telemetry.json, raw.webp,
+//                                             enh.webp, thumb.webp, audio.m4a
 //   GET /api/v1/live                          WebSocket: start, lock, line, complete,
 //                                             status, spectrum (input audio)
 //   GET /api/v1/diagnostics                   host, hardware tier, inputs (UI-007)
@@ -22,6 +26,7 @@
 //   POST /api/v1/password                     create (first time) or change it
 //   POST /api/v1/restart                      restart between two charts (skipper)
 //   GET /…                                    web interface (static files)
+// Files are served whole or by byte range (Range: bytes=…), to seek in a sound.
 // Only GET and HEAD are read-only; every change needs a skipper session (NFR-006).
 
 #pragma once
@@ -40,6 +45,7 @@ struct ApiConfig {
     std::string charts_dir = ".";  ///< Where the receiver writes the charts.
     std::string catalog_dir;       ///< Station JSON files (empty = no catalogue).
     std::string web_dir;           ///< Web interface files (empty = built-in page).
+    std::string vitrine_dir;       ///< Showcase packages, one directory each (empty = none).
     std::string input;             ///< Description of the audio input.
     std::string journal_path;      ///< Journal served at /api/v1/journal (empty = none).
     /// JSON object for /api/v1/diagnostics (host, inputs, options), built on request.
@@ -79,7 +85,8 @@ private:
     Response chart(const std::string& stem, const std::string& part,
                    const std::string& query) const;
     Response stations(const std::string& id) const;
-    Response web(const std::string& path) const;
+    Response web(const std::string& path, const std::string& range) const;
+    Response vitrine(const std::string& id, const std::string& file, const Request& request) const;
     Response info() const;
     Response diagnostics() const;
     Response journal() const;

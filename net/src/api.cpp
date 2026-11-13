@@ -91,11 +91,71 @@ std::string content_type(const fs::path& p) {
     if (ext == ".css") return "text/css; charset=utf-8";
     if (ext == ".json") return "application/json";
     if (ext == ".png") return "image/png";
+    if (ext == ".webp") return "image/webp";
+    if (ext == ".m4a") return "audio/mp4";
     if (ext == ".svg") return "image/svg+xml";
     if (ext == ".ico") return "image/x-icon";
     if (ext == ".woff2") return "font/woff2";
     if (ext == ".txt") return "text/plain; charset=utf-8";
     return "application/octet-stream";
+}
+
+/// A file, whole or one byte range of it ("bytes=a-b", "bytes=a-", "bytes=-n"):
+/// browsers need ranges to seek in a sound, and Safari will not play one without.
+/// A range that cannot be parsed, or several ranges, get the whole file.
+Response file_response(const fs::path& file, const std::string& range) {
+    const auto data = read_file(file);
+    if (!data) return error(404, "not found");
+    Response r;
+    r.content_type = content_type(file);
+    r.headers.emplace_back("Accept-Ranges", "bytes");
+    const std::size_t size = data->size();
+    std::size_t first = 0, last = 0;
+    bool partial = false;
+    const auto number = [](const std::string& x, std::size_t& v) {
+        if (x.empty() || x.size() > 15) return false;
+        for (char c : x) {
+            if (c < '0' || c > '9') return false;
+        }
+        v = static_cast<std::size_t>(std::stoull(x));
+        return true;
+    };
+    if (range.rfind("bytes=", 0) == 0 && range.find(',') == std::string::npos) {
+        const std::string spec = range.substr(6);
+        const auto dash = spec.find('-');
+        if (dash != std::string::npos) {
+            const std::string a = spec.substr(0, dash), b = spec.substr(dash + 1);
+            std::size_t va = 0, vb = 0;
+            if (number(a, va) && b.empty()) {
+                first = va;
+                last = size == 0 ? 0 : size - 1;
+                partial = true;
+            } else if (number(a, va) && number(b, vb) && vb >= va) {
+                first = va;
+                last = size == 0 ? 0 : std::min(vb, size - 1);
+                partial = true;
+            } else if (a.empty() && number(b, vb) && vb > 0) {
+                first = size - std::min(vb, size);
+                last = size == 0 ? 0 : size - 1;
+                partial = true;
+            }
+        }
+        if (partial && first >= size) {
+            Response e = error(416, "range not satisfiable");
+            e.headers.emplace_back("Content-Range", "bytes */" + std::to_string(size));
+            return e;
+        }
+    }
+    if (partial) {
+        r.status = 206;
+        r.body = data->substr(first, last - first + 1);
+        r.headers.emplace_back("Content-Range", "bytes " + std::to_string(first) + "-" +
+                                                    std::to_string(last) + "/" +
+                                                    std::to_string(size));
+    } else {
+        r.body = *data;
+    }
+    return r;
 }
 
 /// Value of `name` in a query string ("a=1&levels=16"), empty if absent.
@@ -221,13 +281,17 @@ Response Api::handle(const Request& request) {
             if (parts.size() == 4) return chart(parts[3], "", request.query);
             if (parts.size() == 5) return chart(parts[3], parts[4], request.query);
         }
+        if (parts.size() >= 3 && parts[2] == "vitrine") {
+            if (parts.size() == 3) return vitrine("", "", request);
+            if (parts.size() == 5) return vitrine(parts[3], parts[4], request);
+        }
         if (parts.size() >= 3 && parts[2] == "stations" && parts.size() <= 4) {
             return stations(parts.size() == 4 ? parts[3] : "");
         }
         return error(404, "no such API endpoint: " + request.path);
     }
     if (!read) return error(405, "the web interface is read only");
-    return web(request.path);
+    return web(request.path, request.header("range"));
 }
 
 // ------------------------------------------------- skipper settings (UI-002/004)
@@ -490,7 +554,7 @@ Response Api::live() {
     return r;
 }
 
-Response Api::web(const std::string& path) const {
+Response Api::web(const std::string& path, const std::string& range) const {
     if (config_.web_dir.empty()) {
         if (path != "/" && path != "/index.html") return error(404, "not found: " + path);
         const auto& b = build_info();
@@ -526,12 +590,58 @@ Response Api::web(const std::string& path) const {
     fs::path file = fs::path(config_.web_dir) / (rel.empty() ? "index.html" : rel.substr(1));
     std::error_code ec;
     if (fs::is_directory(file, ec)) file /= "index.html";
-    const auto data = read_file(file);
-    if (!data) return error(404, "not found: " + path);
-    Response r;
-    r.content_type = content_type(file);
-    r.body = *data;
+    Response r = file_response(file, range);
+    if (r.status == 404) return error(404, "not found: " + path);
     r.headers.emplace_back("Cache-Control", "no-cache");
+    return r;
+}
+
+// ------------------------------------------- web showcase packages (VITRINE-WEB.md)
+
+Response Api::vitrine(const std::string& id, const std::string& file,
+                      const Request& request) const {
+    if (config_.vitrine_dir.empty()) return error(404, "no showcase packages (option --vitrine)");
+    const fs::path root(config_.vitrine_dir);
+    if (id.empty()) {
+        // Every package with a meta.json, newest first (chart ids start with the time).
+        std::vector<std::string> ids;
+        std::error_code ec;
+        for (fs::directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
+            const std::string name = it->path().filename().string();
+            std::error_code fe;
+            if (is_chart_stem(name) && fs::is_regular_file(it->path() / "meta.json", fe)) {
+                ids.push_back(name);
+            }
+        }
+        std::sort(ids.rbegin(), ids.rend());
+        const std::size_t limit = query_limit(request.query);
+        if (ids.size() > limit) ids.resize(limit);
+        std::string body = "[";
+        bool first = true;
+        for (const auto& i : ids) {
+            const auto text = read_file(root / i / "meta.json");
+            if (!text) continue;
+            body += first ? "\n" : ",\n";
+            body += trim_json(*text);
+            first = false;
+        }
+        body += first ? "]\n" : "\n]\n";
+        return Response::json(body);
+    }
+    static const char* const kFiles[] = {"meta.json", "telemetry.json", "raw.webp",
+                                         "enh.webp",  "thumb.webp",     "audio.m4a"};
+    if (!is_chart_stem(id)) return error(404, "no such package");
+    const bool known =
+        std::any_of(std::begin(kFiles), std::end(kFiles), [&](const char* f) { return file == f; });
+    if (!known) {
+        return error(404,
+                     "package files: meta.json, telemetry.json, raw.webp, enh.webp, thumb.webp, "
+                     "audio.m4a");
+    }
+    Response r = file_response(root / id / file, request.header("range"));
+    if (r.status == 404) return error(404, "no " + file + " in " + id);
+    // Media never change; meta.json may be rewritten by a new run of the tool.
+    r.headers.emplace_back("Cache-Control", file == "meta.json" ? "no-cache" : "max-age=3600");
     return r;
 }
 
